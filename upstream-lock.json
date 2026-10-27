@@ -1,0 +1,44 @@
+{
+  "qmd": {
+    "repo": "tobi/qmd",
+    "path": "skills/qmd",
+    "commit": "93d211f9ef4a869a9aed0d075ca767dda552627f",
+    "upstream_skill_sha256": "32e5c92c9eb2001850e38f0669157aa34ab991134ce83e9867d8789bda0ddd32",
+    "license_sha256": "24c446836e7e2cdea13a914de10c88c553e6297366061ba24013b8ce73c8f7fa",
+    "runtime": "skill only; optional upstream runtime not installed or authenticated",
+    "active": true
+  },
+  "ppt2word": {
+    "repo": "RichardASimon/PPT2Word.skill",
+    "path": ".",
+    "commit": "ad4158755fc13e3c7a26c962df02c11b7ec10d2f",
+    "upstream_skill_sha256": "08277e06a077b556802ac8947592eb08860cab8a343eb9aaf61fc33d3e189b64",
+    "license_sha256": "12873a93494cfd910241ff33688420a9f23634a5573155d191845fabb4efecf1",
+    "runtime": "skill only; optional upstream runtime not installed or authenticated",
+    "active": true
+  },
+  "notebooklm": {
+    "repo": "jacob-bd/gemini-notebook-mcp-cli",
+    "path": "src/notebooklm_tools/data",
+    "commit": "1df1e760da5b5208c6f2f33a60ae410b4ba4c37d",
+    "upstream_skill_sha256": "dcfc54e165ca876502970e412dec08827943704d5c43d73e5f2443e273424c56",
+    "license_sha256": "5a566db4393add7499d8ad8aa5fc393b67b929ac600f44964808d28aeee0b41a",
+    "runtime": "skill only; optional upstream runtime not installed or authenticated",
+    "active": true
+  },
+  "study-cache": {
+    "origin": "local task-specific implementation",
+    "active": true,
+    "runtime": "bundled Python standard library",
+    "script_sha256": "3c38e0c93eb3227620802716002c77db3d889dee3952824f9288462efd8889de"
+  },
+  "security-audit": {
+    "repo": "cloudflare/security-audit-skill",
+    "path": "skills/security-audit",
+    "commit": "c1c8a8c1471069fb0e188eeaff69b8e8db6564a8",
+    "license": "MIT",
+    "upstream_skill_sha256": "5e3e96a1e438d8f35fef0a1e38f02d4f00e2bdf910401b7dfe00e6779c6dac85",
+    "runtime": "guidance by default; full audit and execution isolation not validated in this bundle",
+    "active": true
+  }
+}
