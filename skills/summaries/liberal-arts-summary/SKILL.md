@@ -5,7 +5,7 @@ description: Summarize supplied liberal-arts lectures using course-appropriate p
 
 # 교양 과목별 요약
 
-[출처 원칙](../read-and-summarize/references/source-rules.md)을 따른다. 교수의 자료·학생의 필기·확인된 강조와 AI 보충을 구분한다. 시험 형식·범위·날짜는 현재 제공된 정보에서 확인하고 사용자 추측을 공지로 확정하지 않는다.
+[출처 원칙](../../sources/read-and-summarize/references/source-rules.md)을 따른다. 교수의 자료·학생의 필기·확인된 강조와 AI 보충을 구분한다. 시험 형식·범위·날짜는 현재 제공된 정보에서 확인하고 사용자 추측을 공지로 확정하지 않는다.
 
 - 서양 현대사: 원인·과정·결과, 시대 간 연결과 같은 시기 다른 지역의 흐름을 근거에 맞춰 정리한다. 병행 사건을 억지로 인과로 묶지 않는다. 녹음 편집에는 `lecture-recording-summary`를 선택한다.
 - 생명체 속 화학: 필기 핵심어·정의·분류·구조·기능·차이·반응 조건을 중심으로 한다. 그림·화학식·모형을 텍스트만으로 추측하지 않는다. 문서 정리에는 `life-chemistry-summary`를 선택한다.

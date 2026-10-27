@@ -5,7 +5,7 @@ description: Practice short-answer recall and source-grounded essay answers, inc
 
 # 단답형과 서술형 공부
 
-[자료 판단 공통 원칙](../read-and-summarize/references/source-rules.md)을 한 번 읽는다. 교수님의 설명·용어를 답안 기준으로 삼고 일반 해석과 차이가 있으면 표시한다.
+[자료 판단 공통 원칙](../../sources/read-and-summarize/references/source-rules.md)을 한 번 읽는다. 교수님의 설명·용어를 답안 기준으로 삼고 일반 해석과 차이가 있으면 표시한다.
 
 - 단답형: 정의·구별점·사례에서 핵심 용어를 떠올리는 문제 하나를 낸다.
 - 서술형: 문제의 요구(설명·비교·평가·원인 등)를 먼저 파악하고 주장 → 근거 → 사례로 쓰게 한다. 아직 제출하지 않은 답안의 모범 답안을 먼저 공개하지 않는다.

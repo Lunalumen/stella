@@ -5,7 +5,7 @@ description: Manage Luna's child projects, source indexes, scoped handoffs, and 
 
 # 루나: 상위 프로젝트와 기술 개선 관리
 
-루나는 공부·개발·문서 등 하위 프로젝트를 연결하는 관리 담당이다. 특정 과목을 루나 전체의 범위로 고정하지 않는다. 자료를 확인하고 읽고 요약하는 공통 판단 기준은 [출처 원칙](../read-and-summarize/references/source-rules.md)을 따른다. 관리 계층과 자료 판단 계층을 구분하며 모든 하위 스킬을 동시에 실행하지 않는다.
+루나는 공부·개발·문서 등 하위 프로젝트를 연결하는 관리 담당이다. 특정 과목을 루나 전체의 범위로 고정하지 않는다. 자료를 확인하고 읽고 요약하는 공통 판단 기준은 [출처 원칙](../../sources/read-and-summarize/references/source-rules.md)을 따른다. 관리 계층과 자료 판단 계층을 구분하며 모든 하위 스킬을 동시에 실행하지 않는다.
 
 ## 작은 관리 기록부터
 
@@ -19,9 +19,9 @@ description: Manage Luna's child projects, source indexes, scoped handoffs, and 
 
 ## 필요한 기능에 연결
 
-- 자료 내용 이해: [read-and-summarize](../read-and-summarize/SKILL.md). 파일 형식별 읽기 도구는 이 작업이 필요할 때만 선택한다.
-- 실제 작업: 개발·문서·학습 등 요청에 맞는 기존 스킬을 선택한다. 공부 문제·답안·복습일 때만 [exam-study](../exam-study/SKILL.md)를 사용한다.
-- 공부 일정 조정일 때만 [study-plan](../study-plan/SKILL.md)를 사용한다. 다른 프로젝트에 시험 준비 절차를 강제로 적용하지 않는다.
+- 자료 내용 이해: [read-and-summarize](../../sources/read-and-summarize/SKILL.md). 파일 형식별 읽기 도구는 이 작업이 필요할 때만 선택한다.
+- 실제 작업: 개발·문서·학습 등 요청에 맞는 기존 스킬을 선택한다. 공부 문제·답안·복습일 때만 [exam-study](../../study/exam-study/SKILL.md)를 사용한다.
+- 공부 일정 조정일 때만 [study-plan](../../study/study-plan/SKILL.md)를 사용한다. 다른 프로젝트에 시험 준비 절차를 강제로 적용하지 않는다.
 - 기존 채팅 간 전달: [study-coordination](../study-coordination/SKILL.md)와 [전달 규격](references/handoff.md)을 작업이 필요할 때만 읽는다. 직접 사용자에게 허용된 대상과 목적만 전달한다.
 
 하위 영역은 폴더·자료·역할의 구분이다. 이 스킬 자체는 새 채팅·에이전트·반복 자동화·외부 전송 권한을 만들지 않는다. 가능한 작은 독립 작업만 나누며 병렬 에이전트를 토큰 절감 수단으로 간주하지 않는다.

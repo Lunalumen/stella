@@ -14,9 +14,9 @@ description: Inspect supplied material, establish what is readable, and summariz
 3. 중심 질문·핵심 개념·원인과 결과·비교 관계를 파악한다. 자료의 시간 전환과 병행 흐름을 구분하고, 단순 목록 때문에 연결이 사라지지 않게 한다.
 4. 요청한 분량과 수준으로 핵심부터 정리한다. 필요한 조건·예외·논쟁은 남긴다. 단답 요청에는 불필요한 요약 절차를 겉으로 늘어놓지 않는다.
 5. 다음 작업이 실제 요청됐을 때만 해당 스킬을 읽는다.
-   - 학습·문제·복습: [exam-study](../exam-study/SKILL.md)
-   - 수업 녹음 대본 정리: [lecture-recording-summary](../lecture-recording-summary/SKILL.md)
-   - 다른 채팅과 자료 전달: [study-coordination](../study-coordination/SKILL.md)
+   - 학습·문제·복습: [exam-study](../../study/exam-study/SKILL.md)
+   - 수업 녹음 대본 정리: [lecture-recording-summary](../../summaries/lecture-recording-summary/SKILL.md)
+   - 다른 채팅과 자료 전달: [study-coordination](../../management/study-coordination/SKILL.md)
    - 문서 편집·시각화·발표 등: 그 산출물에 맞는 이미 설치된 스킬. 요약만으로 편집·공유 권한을 추정하지 않는다.
 
 재사용 시 전체 원문 대신 출처 위치, 확인 범위, 필요한 요약과 미확인 사항을 남긴다. 출처가 바뀌면 관련 부분을 갱신한다.

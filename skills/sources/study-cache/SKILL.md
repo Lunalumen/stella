@@ -4,7 +4,7 @@ description: Reuse supplied study material by storing source text with slide or 
 ---
 # Reuse study sources
 
-The AI agent chooses the task; this skill provides its internal retrieval algorithm. Follow the [reuse rules](../study-cache/references/reuse-rules.md).
+The AI agent chooses the task; this skill provides its internal retrieval algorithm. Follow the [reuse rules](references/reuse-rules.md).
 
 Use `scripts/study_cache.py` with a designated local input. It supports PPTX, DOCX, UTF-8 TXT/MD and a saved native Google Docs API JSON response. Run `--help` only when syntax is unfamiliar.
 

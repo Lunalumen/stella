@@ -5,7 +5,7 @@ description: Clean supplied lecture transcripts against personal notes and summa
 
 # 녹음 대본을 읽고 흐름 정리하기
 
-[자료 판단 공통 원칙](../read-and-summarize/references/source-rules.md)을 한 번 읽는다. 원음 전사가 아니라 이미 제공된 대본의 정리 작업이다.
+[자료 판단 공통 원칙](../../sources/read-and-summarize/references/source-rules.md)을 한 번 읽는다. 원음 전사가 아니라 이미 제공된 대본의 정리 작업이다.
 
 - 대상 문서·탭·회차·출력 위치와 사용자의 개인 필기를 확인한다. 개인 필기는 중요 주제 대조용이며 별도 수정·재요약하지 않는다.
 - 잡담·반복·정치적 비유·개인 평가를 덜고 비유가 설명하려는 역사·정치 개념과 관계를 남긴다.

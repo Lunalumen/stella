@@ -5,7 +5,7 @@ description: Review a student's algorithm or programming answers against class q
 
 # 알고리즘과 프로그래밍 공부
 
-[출처 원칙](../read-and-summarize/references/source-rules.md)을 따른다. 수업 언어·문법·풀이 방식·표기를 우선한다.
+[출처 원칙](../../sources/read-and-summarize/references/source-rules.md)을 따른다. 수업 언어·문법·풀이 방식·표기를 우선한다.
 
 ## 학생이 푼 문제와 개념 연결
 

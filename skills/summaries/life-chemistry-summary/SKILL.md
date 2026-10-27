@@ -5,7 +5,7 @@ description: Compare supplied chemistry lecture notes, AI summaries and transcri
 
 # 생명체 속 화학 강의 정리
 
-[출처 원칙](../read-and-summarize/references/source-rules.md)을 따른다. 현재 사용자가 지정한 문서·필기·AI 요약·전사·출력 위치를 확인한다. 특정 문서나 채팅의 권한을 이 스킬이 대신 부여하지 않는다.
+[출처 원칙](../../sources/read-and-summarize/references/source-rules.md)을 따른다. 현재 사용자가 지정한 문서·필기·AI 요약·전사·출력 위치를 확인한다. 특정 문서나 채팅의 권한을 이 스킬이 대신 부여하지 않는다.
 
 ## 요약 판단
 

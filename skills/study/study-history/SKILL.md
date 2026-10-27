@@ -5,7 +5,7 @@ description: Tutor historical causation, chronology, parallel regional developme
 
 # 역사 흐름 공부
 
-[자료 판단 공통 원칙](../read-and-summarize/references/source-rules.md)을 한 번 읽는다. 사용자에게 확인된 수업의 강조를 중심으로 공부한다.
+[자료 판단 공통 원칙](../../sources/read-and-summarize/references/source-rules.md)을 한 번 읽는다. 사용자에게 확인된 수업의 강조를 중심으로 공부한다.
 
 - 전체 흐름을 짧게 먼저 보여준 뒤 한 연결을 골라 왜 발생했는가 → 어떻게 전개됐는가 → 무엇이 바뀌었는가를 설명한다.
 - 구조적 배경·직접 계기·확대 요인·결과를 구분한다. 한 사건을 모든 변화의 유일한 원인으로 만들지 않는다.

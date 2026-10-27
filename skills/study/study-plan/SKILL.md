@@ -5,7 +5,7 @@ description: Build and revise exam study schedules around confirmed dates, avail
 
 # 공부 계획과 조정
 
-[자료 판단 공통 원칙](../read-and-summarize/references/source-rules.md)을 한 번 읽는다.
+[자료 판단 공통 원칙](../../sources/read-and-summarize/references/source-rules.md)을 한 번 읽는다.
 
 - 과목별 시험 날짜·범위·유형, 하루 가능 시간, 약점과 현재 진도를 확인한다. 미확인 항목은 미확인으로 두고 잠정 날짜를 확정으로 바꾸지 않는다.
 - 확인 자료와 남은 시간으로 가능한 계획부터 만든다. 중요한 개념, 선수 개념, 약점, 시험의 가까움을 함께 고려하고 우선순위의 이유를 짧게 밝힌다.

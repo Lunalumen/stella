@@ -5,7 +5,7 @@ description: Route university study requests to the relevant tutoring, essay, hi
 
 # 공부 목적에 맞게 선택하기
 
-[자료 판단 공통 원칙](../read-and-summarize/references/source-rules.md)을 읽고 자료를 실제로 확인한다. 불필요하게 최상위 스킬과 모든 하위 스킬을 연쇄 호출하지 않는다.
+[자료 판단 공통 원칙](../../sources/read-and-summarize/references/source-rules.md)을 읽고 자료를 실제로 확인한다. 불필요하게 최상위 스킬과 모든 하위 스킬을 연쇄 호출하지 않는다.
 
 - 코드 추적·작성·알고리즘 풀이: [study-algorithms](../study-algorithms/SKILL.md)
 - 단답형·서술형·미학 답안: [study-essay](../study-essay/SKILL.md)
