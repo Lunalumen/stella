@@ -13,3 +13,11 @@ description: Find relevant passages in user-designated local documents and prepa
 ## 프롬프트 작성에 연결
 
 사용자가 프롬프트 작성·축약을 요청했을 때만 [stella-concise-prompt](../stella-concise-prompt/SKILL.md)를 사용한다. 자료 확인만 요청됐으면 프롬프트를 자동 추가하지 않는다. 필요한 자료·근거만 넘기며 다른 두 검색 스킬을 연쇄 호출하지 않는다.
+
+## 개인 공부 검색
+
+한국어 띄어쓰기 차이를 허용하며 서로 다른 검색어가 함께 등장하는 구간을 먼저 반환한다. 단어 반복 횟수만으로 우선순위를 정하지 않는다. 동의어·의미 검색은 아니다.
+
+앞뒤 정의·조건·예외가 필요하면 search --context-sections 1 --max-total-chars 3600을 사용한다. PDF 페이지·PPT 슬라이드 문맥만 추가하며 모든 발췌가 같은 본문 문자 예산을 공유한다. JSON 메타데이터와 토큰 수는 별도다. truncated와 context_omitted_for_budget을 확인하고 필요할 때만 read로 확대한다.
+
+과목·시험별 course를 분리하고 지정 등록한 자료만 사용한다. 이전 시험 자료를 새 범위로 자동 등록하지 않는다. 원본의 그림·수식과 학습 완료는 별도 확인한다.
