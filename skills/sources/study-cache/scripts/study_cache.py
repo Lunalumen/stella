@@ -11,7 +11,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from xml.etree import ElementTree as ET
 
-DEFAULT_DB = Path(__file__).resolve().parents[4] / 'external-tools/study-skills/cache/sources.sqlite'
+DEFAULT_DB = Path.cwd() / '.study-cache' / 'sources.sqlite'
 A = '{http://schemas.openxmlformats.org/drawingml/2006/main}'
 R = '{http://schemas.openxmlformats.org/officeDocument/2006/relationships}'
 P = '{http://schemas.openxmlformats.org/presentationml/2006/main}'
@@ -52,7 +52,28 @@ def doc_paragraphs(content):
 
 def extract(path):
     suffix = path.suffix.lower()
-    if suffix == '.pptx':
+    if suffix == '.pdf':
+        try:
+            from pypdf import PdfReader
+        except ImportError as exc:
+            raise ValueError('PDF support requires pypdf; install it in the selected environment') from exc
+        try:
+            reader = PdfReader(path)
+            if reader.is_encrypted:
+                raise ValueError('Encrypted PDF: provide an authorized unencrypted copy; no password guessing')
+            pages = []
+            for number, page in enumerate(reader.pages, 1):
+                text = page.extract_text() or ''
+                status = 'text extracted; layout/tables/figures unverified' if text.strip() else 'no extracted text; OCR/visual review required'
+                pages.append((f'page {number}; {status}', text))
+            if not any(text.strip() for _, text in pages):
+                raise ValueError('PDF has no extractable text; OCR/visual review required; prior cache preserved')
+        except ValueError:
+            raise
+        except Exception as exc:
+            raise ValueError('PDF extraction failed; prior cache preserved: ' + str(exc)) from exc
+        yield from pages
+    elif suffix == '.pptx':
         with zipfile.ZipFile(path) as z:
             rels = {r.get('Id'): r.get('Target') for r in ET.fromstring(z.read('ppt/_rels/presentation.xml.rels'))}
             root = ET.fromstring(z.read('ppt/presentation.xml'))
@@ -91,7 +112,7 @@ def extract(path):
         for n in range(0, len(lines), 30):
             yield f'lines {n + 1}-{min(n + 30, len(lines))}', '\n'.join(lines[n:n + 30])
     else:
-        raise ValueError('Unsupported source: use a designated PPTX/DOCX/TXT/MD/Google Docs JSON')
+        raise ValueError('Unsupported source: use a designated PDF/PPTX/DOCX/TXT/MD/Google Docs JSON')
 
 def freshness(source):
     path = Path(source['path'])
