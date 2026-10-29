@@ -1,6 +1,6 @@
 # Stella
 
-자료 이해·요약·학습·리서치를 위한 AI 스킬 22개를 목적별로 모았습니다.
+자료 이해·요약·학습·리서치를 위한 AI 스킬 23개를 목적별로 모았습니다.
 
 ## 분야별로 찾기
 
@@ -39,3 +39,5 @@ Lunalumen/-의 커밋 2b524f08161c16c399d58742c361301110fec0c3에서 가져온 �
 ## Stella 자료 검색·프롬프트 정리
 
 [자료 읽기·재사용](skills/sources/README.md)에 Stella 전용 스킬 3개를 추가했습니다. 중복을 줄이면서 목표·조건·숫자·출처를 보존합니다. 외부 런타임은 미설치·미검증이며 실제 토큰 절감률은 미측정입니다.
+
+짧은 프롬프트 작성: [stella-concise-prompt](skills/sources/stella-concise-prompt/SKILL.md).

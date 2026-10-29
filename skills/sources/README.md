@@ -23,3 +23,5 @@
 ## 프롬프트 만들기
 
 [공통 프롬프트 작성법](PROMPT_GUIDE.md): 검색한 자료를 목표·근거·조건·원하는 결과로 정리하고 중요한 정보가 보존됐는지 확인합니다.
+
+- [stella-concise-prompt](stella-concise-prompt/SKILL.md): 중요한 요구사항을 보존하고 완성된 짧은 프롬프트 하나만 출력합니다.
