@@ -1,0 +1,20 @@
+[
+  {
+    "name": "stella-kb-retriever",
+    "repository": "ConardLi/garden-skills",
+    "commit": "2b9a89340b70f632d31c0f1c69fce94a7912423e",
+    "license": "MIT; preserve bundled third-party notices"
+  },
+  {
+    "name": "stella-mineru-document-explorer",
+    "repository": "opendatalab/MinerU-Document-Explorer",
+    "commit": "a7e9c6cc25b7edbf4ebd35aea8e270523a8a3e40",
+    "license": "MIT; preserve bundled third-party notices"
+  },
+  {
+    "name": "stella-markitdown",
+    "repository": "KalarisLabs/research-agent-skills",
+    "commit": "b0ee35abfd7e26428846fbd84f282114560a5fbd",
+    "license": "MIT; preserve bundled third-party notices"
+  }
+]
