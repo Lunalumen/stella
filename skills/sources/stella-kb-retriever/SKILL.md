@@ -21,3 +21,7 @@ description: Find relevant passages in user-designated local documents and prepa
 앞뒤 정의·조건·예외가 필요하면 search --context-sections 1 --max-total-chars 3600을 사용한다. PDF 페이지·PPT 슬라이드 문맥만 추가하며 모든 발췌가 같은 본문 문자 예산을 공유한다. JSON 메타데이터와 토큰 수는 별도다. truncated와 context_omitted_for_budget을 확인하고 필요할 때만 read로 확대한다.
 
 과목·시험별 course를 분리하고 지정 등록한 자료만 사용한다. 이전 시험 자료를 새 범위로 자동 등록하지 않는다. 원본의 그림·수식과 학습 완료는 별도 확인한다.
+
+## 설명 본문과 중복 발췌
+
+검색어 일치 정도가 같으면 짧은 과제형 질문보다 설명 본문을 우선하는 휴리스틱이다. 같은 원본에서 반환된 텍스트에 완전히 포함되는 미절단 발췌만 생략하고 위치를 included_locations·duplicate_count로 남긴다. 다른 원본·부분 중복·별도 예외·잘린 텍스트는 보존한다. 생략한 자리에는 추가 자료를 채우지 않으며 필요하면 read로 원문을 확인한다. 설명 우선으로 길이가 늘 수도 있어 토큰 절감으로 단정하지 않는다.

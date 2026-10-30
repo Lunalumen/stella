@@ -177,11 +177,29 @@ def search(db, args):
                          'freshness': state, 'offset': start, 'text': row['text'][start:start + args.max_chars],
                          'truncated': start > 0 or start + args.max_chars < len(row['text']),
                          'score': sum(counts), 'matched_terms': matched, 'query_terms': len(terms),
-                         'phrase_match': bool(phrase.search(row['text']))})
-    hits.sort(key=lambda h: (-h['matched_terms'], -int(h['phrase_match']), -min(h['score'], 20)))
+                         'phrase_match': bool(phrase.search(row['text'])),
+                         'question_only': len(row['text']) < 140 and bool(re.search(r'설명하시오|서술하시오|무엇인가|[?？]', row['text'])),
+                         'has_body': len(row['text'].strip()) >= 120})
+    hits.sort(key=lambda h: (-h['matched_terms'], -int(h['phrase_match']),
+                             int(h['question_only']), -int(h['has_body']), -min(h['score'], 20)))
     budget = getattr(args, 'max_total_chars', None) or args.limit * args.max_chars
-    selected, used = [], 0
+    selected, used, duplicates = [], 0, 0
     for hit in hits[:args.limit]:
+        normalized = ' '.join(hit['text'].split())
+        duplicate_of = next((s for s in selected
+                             if s['source_id'] == hit['source_id']
+                             and not hit['truncated']
+                             and normalized
+                             and normalized in ' '.join(s['text'].split())), None)
+        if duplicate_of is not None:
+            duplicates += 1
+            duplicate_of['duplicate_count'] = duplicate_of.get('duplicate_count', 0) + 1
+            refs = duplicate_of.setdefault('included_locations', [])
+            if len(refs) < 5:
+                refs.append({'section': hit['section'], 'location': hit['location']})
+            continue
+        if len(selected) >= args.limit:
+            continue
         if used >= budget:
             break
         original_length = len(hit['text'])
@@ -189,6 +207,9 @@ def search(db, args):
         hit['truncated'] = hit['truncated'] or len(hit['text']) < original_length
         used += len(hit['text'])
         selected.append(hit)
+    for hit in selected:
+        hit.pop('question_only', None)
+        hit.pop('has_body', None)
     context_count = getattr(args, 'context_sections', 0)
     seen = {(h['source_id'], h['section']) for h in selected}
     context_omitted = False
@@ -215,7 +236,8 @@ def search(db, args):
                 used += len(text)
                 seen.add(key)
     return {'hits': selected, 'skipped': skipped, 'matched_sections': len(hits), 'model_calls': 0,
-            'returned_text_chars': used, 'text_char_budget': budget, 'context_omitted_for_budget': context_omitted}
+            'returned_text_chars': used, 'text_char_budget': budget, 'context_omitted_for_budget': context_omitted, 'duplicates_omitted': duplicates}
+
 
 def read(db, args):
     source = db.execute('SELECT * FROM sources WHERE id=?', (args.source_id,)).fetchone()
