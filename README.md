@@ -1,13 +1,13 @@
 # Stella
 
-자료 이해·요약·학습·리서치를 위한 AI 스킬 23개를 목적별로 모았습니다.
+자료 이해·요약·학습·리서치를 위한 AI 스킬 24개를 목적별로 모았습니다.
 
 ## 분야별로 찾기
 
 | 분야 | 포함 내용 | 스킬 수 |
 |---|---|---:|
-| [프로젝트 관리](skills/management/README.md) | 프로젝트 상태 관리와 채팅 간 작업 전달에 사용합니다. | 2 |
-| [자료 읽기·재사용](skills/sources/README.md) | 자료를 읽고, 필요한 구간을 찾고, 저장본을 재사용할 때 선택합니다. | 5 |
+| [프로젝트 관리](skills/management/README.md) | 프로젝트 상태 관리와 채팅 간 작업 전달에 사용합니다. | 3 |
+| [자료 읽기·재사용](skills/sources/README.md) | 자료를 읽고, 필요한 구간을 찾고, 저장본을 재사용할 때 선택합니다. | 9 |
 | [강의 요약](skills/summaries/README.md) | 강의 자료와 필기를 과목과 자료 형태에 맞춰 정리합니다. | 3 |
 | [학습·복습](skills/study/README.md) | 실제 문제 풀이, 답안 피드백, 계획과 오답 복습에 사용합니다. | 6 |
 | [리서치·보안](skills/research/README.md) | 기업 조사나 보안 검토가 요청됐을 때만 선택합니다. | 2 |
@@ -41,3 +41,5 @@ Lunalumen/-의 커밋 2b524f08161c16c399d58742c361301110fec0c3에서 가져온 �
 [자료 읽기·재사용](skills/sources/README.md)에 Stella 전용 스킬 3개를 추가했습니다. 중복을 줄이면서 목표·조건·숫자·출처를 보존합니다. 외부 런타임은 미설치·미검증이며 실제 토큰 절감률은 미측정입니다.
 
 짧은 프롬프트 작성: [stella-concise-prompt](skills/sources/stella-concise-prompt/SKILL.md).
+
+토큰 절감 평가: [stella-token-audit](skills/management/stella-token-audit/SKILL.md). 제공 텍스트와 전체 작업 사용량 로그를 구분하며 실제 사용량 근거 없이는 전체 절감을 판정하지 않습니다.

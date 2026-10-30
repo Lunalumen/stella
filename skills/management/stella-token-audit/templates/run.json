@@ -1,0 +1,11 @@
+{
+  "origin": "usage_export",
+  "task_id": "REPLACE_TASK",
+  "model": "REPLACE_MODEL",
+  "config_id": "REPLACE_MATCHING_SETTINGS",
+  "scope": "whole_task",
+  "complete": false,
+  "quality_passed": false,
+  "quality_basis": "검토 근거를 기록하고 확인되지 않으면 false 유지",
+  "calls": []
+}
