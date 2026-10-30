@@ -158,7 +158,11 @@ def search(db, args):
     compact_query = re.sub(r'\s+', '', args.query)
     phrase = re.compile(study_pattern(compact_query) if re.fullmatch(r'[가-힣]+', compact_query)
                         else re.escape(args.query.strip()), re.IGNORECASE)
-    sources = db.execute('SELECT * FROM sources WHERE course=? ORDER BY id', (args.course,)).fetchall()
+    requested_source = getattr(args, 'source_id', None)
+    if requested_source:
+        sources = db.execute('SELECT * FROM sources WHERE course=? AND id=?', (args.course, requested_source)).fetchall()
+    else:
+        sources = db.execute('SELECT * FROM sources WHERE course=? ORDER BY id', (args.course,)).fetchall()
     hits, skipped = [], []
     for source in sources:
         state = freshness(source)
@@ -277,6 +281,7 @@ def main():
     p.add_argument('--max-chars', type=positive, default=1200)
     p.add_argument('--max-total-chars', type=positive, default=None, help='Shared text budget, excluding JSON metadata')
     p.add_argument('--context-sections', type=int, choices=range(0, 3), default=0, help='Neighbor PDF pages or PPT slides')
+    p.add_argument('--source-id', help='Restrict search to one cached source')
     p = sub.add_parser('read')
     p.add_argument('source_id')
     p.add_argument('section', type=positive)

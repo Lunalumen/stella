@@ -1,27 +1,31 @@
-# 자료 읽기·재사용
+# 자료 보고 읽기
 
-자료를 읽고, 필요한 구간을 찾고, 저장본을 재사용할 때 선택합니다.
+파일이 지정된 요청은 [stella-read](stella-read/SKILL.md) 하나에서 시작합니다.
 
-| 스킬 | 용도 |
-|---|---|
-| [read-and-summarize](read-and-summarize/SKILL.md) | 자료 확인·이해·핵심 요약 |
-| [study-cache](study-cache/SKILL.md) | 자료 변경 확인과 저장본 재사용 |
-| [qmd](qmd/SKILL.md) | 저장된 자료의 관련 구간 검색 |
-| [ppt2word](ppt2word/SKILL.md) | PPT 자료 재사용과 Word 변환 |
-| [notebooklm](notebooklm/SKILL.md) | 선택형 NotebookLM 연결 |
+```text
+stella-read/
+├─ references/pdf/READ.md
+│  ├─ text.md    텍스트 추출·재사용
+│  ├─ scan.md    스캔·OCR 필요 판단
+│  └─ visual.md  표·그림·수식 확인
+├─ references/ppt/READ.md
+├─ references/document/READ.md
+└─ scripts/read_source.py
+```
 
-[전체 분야](../README.md) · [Stella 홈](../../README.md)
+하위 가지는 필요할 때만 읽는 내부 모듈입니다. 별도 에이전트나 독립 스킬을 매번 호출하지 않습니다. 이미 아는 파일은 바로 처리하고 반환된 자료 ID로 이어갑니다. 기존 study-cache를 재사용하며 지정 파일 안에서만 검색합니다. 같은 파일은 재추출하지 않습니다.
 
-## Stella 프롬프트·자료 처리
+## 보조 기능
 
-- [stella-kb-retriever](stella-kb-retriever/SKILL.md): Find relevant passages in user-designated local documents and prepare concise source-linked context.
-- [stella-mineru-document-explorer](stella-mineru-document-explorer/SKILL.md): Navigate large documents by section or page and inspect relevant tables and figures.
-- [stella-markitdown](stella-markitdown/SKILL.md): Prepare user-designated documents as searchable text while preserving source locations.
+- [stella-kb-retriever](stella-kb-retriever/SKILL.md): 대상 파일을 모를 때 지정 과목 캐시에서 찾기
+- [study-cache](study-cache/SKILL.md): 공통 추출·저장·변경 확인 엔진
+- [read-and-summarize](read-and-summarize/SKILL.md): 자료 이해·요약 기준
+- [qmd](qmd/SKILL.md): 선택형 고급 검색
+- [ppt2word](ppt2word/SKILL.md): Word 산출물이 필요할 때
+- [notebooklm](notebooklm/SKILL.md): 사용자가 해당 서비스를 선택했을 때
+- [stella-markitdown](stella-markitdown/SKILL.md) · [stella-mineru-document-explorer](stella-mineru-document-explorer/SKILL.md): 기본 도구로 해결되지 않는 추가 변환·탐색의 선택 참고
+- [stella-concise-prompt](stella-concise-prompt/SKILL.md): 프롬프트 축약 요청 때만
 
-필요한 스킬 하나부터 선택합니다. 3개를 매번 함께 읽지 않습니다. 원본 지침·라이선스는 각 references/upstream/에 보존하고 출처 커밋은 [STELLA_IMPORTS.json](STELLA_IMPORTS.json)에 기록합니다.
+[공통 프롬프트 작성법](PROMPT_GUIDE.md) · [원본 출처](STELLA_IMPORTS.json) · [전체 분야](../README.md)
 
-## 프롬프트 만들기
-
-[공통 프롬프트 작성법](PROMPT_GUIDE.md): 검색한 자료를 목표·근거·조건·원하는 결과로 정리하고 중요한 정보가 보존됐는지 확인합니다.
-
-- [stella-concise-prompt](stella-concise-prompt/SKILL.md): 중요한 요구사항을 보존하고 완성된 짧은 프롬프트 하나만 출력합니다.
+폴더 계층만으로 실제 모델 토큰 절감이 보장되지는 않습니다. 원본 지침·라이선스·기존 기능은 보존했습니다.
