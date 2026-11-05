@@ -1,9 +1,20 @@
 ---
 name: java-exe-batch
-description: Build and verify Windows console EXEs and runnable JARs from Java examples using an installed JDK and JSmooth. Use for individual or numbered classroom examples and repeatable batch packaging.
+description: Build and verify Windows console EXEs and runnable JARs from classroom Java examples. Preserve a user-confirmed C# console launcher or use JSmooth when required; support single-example checks before batch packaging.
 ---
 
 # Java 예제를 JAR과 EXE로 만들기
+
+## 최우선 1번 — 실제 성공한 콘솔형 EXE 제작법 보존
+
+2026-11-05 사용자가 Ex9_4 단일 EXE를 직접 실행하고 “실제로 된다, 실행 눌러도 가능”이라고 확인했다. **이 사용자의 Java EXE 복구 작업에서는 아래 방법을 가장 먼저 참고한다.** 사용자가 요구한 것은 기존처럼 검은 콘솔 창에 결과를 출력하는 EXE이며, 별도 결과창·버튼 방식은 제출용으로 거절했다. 성공본을 임의로 JSmooth 또는 GUI 실행기로 되돌리지 않는다. 교수 자료를 정확히 따르라는 별도 요구가 있으면 그 요구와 복구 방식을 구분한다.
+
+- **성공 기술:** runnable JAR을 C# EXE의 `application.jar` 리소스로 내장한다. Windows .NET Framework `csc.exe`에 `/target:exe /platform:anycpu /optimize+`를 지정해 **콘솔형** 실행기로 빌드한다. `/target:winexe`를 쓰지 않는다.
+- 실행 시 고유 임시 폴더에 JAR을 추출하고 `JAVA_HOME` → Java 레지스트리 → PATH에서 Java를 찾는다. Java를 직접 실행하면서 `-Dfile.encoding=UTF-8`, `UseShellExecute=false`, `CreateNoWindow=true` 및 표준 출력·오류 리디렉션을 사용한다. 읽기는 비동기로 처리한다.
+- 수집한 결과와 오류를 EXE 자신의 콘솔에 출력한다. 끝에서 `Console.ReadKey(true)`로 사용자가 키를 누를 때까지 기다린다. 입력이 리디렉션된 자동 검사에서는 대기하지 않는다. Java 소스의 계산 로직은 바꾸지 않는다.
+- 재현용 파일은 [assets/ConsoleLauncher.cs](assets/ConsoleLauncher.cs)와 [scripts/build-java-console-exe.ps1](scripts/build-java-console-exe.ps1)이다. `-JarPath`, `-OutputPath`, `-BuildDirectory`, 필요 시 `-DefaultArguments`를 지정한다. PowerShell 7에서 실행한다. 실행 PC에는 호환 Java와 .NET Framework 4.5 이상이 필요하다. Java 자체를 EXE에 포함한 방식은 아니다.
+- 검토한 입력 없는 예제에만 `-ExpectedOutputFile`을 주어 내부 실행 경로의 출력을 비교한다. 정상 콘솔 창 확인·ZIP 직접 실행·사이트 재다운로드·다른 PC 실행은 각각 따로 기록한다. 사용자가 확인한 사실은 해당 Ex9_4의 실제 실행 성공이며, 다른 PC나 모든 ZIP에 대한 보장은 아니다.
+- **한 개부터:** 사용자가 Ex9_4 하나만 요청했으면 하나만 만든다. 그 파일의 실제 실행 확인 후 나머지는 사용자가 요청할 때 진행한다. 단일 성공만으로 일괄 생성 개수가 기존 실패 원인이었다고 단정하지 않는다.
 
 사용자가 지정한 소스와 출력 범위에서 작업한다. 교수의 PPT·성공한 설정이 있으면 먼저 확인한다. 다른 클래스·과제 전체로 범위를 확대하지 않는다.
 
@@ -17,7 +28,7 @@ description: Build and verify Windows console EXEs and runnable JARs from Java e
 
 ## 자동 생성
 
-단순한 콘솔 예제는 [scripts/build-java-exes.ps1](scripts/build-java-exes.ps1)을 사용한다. 외부 라이브러리·공유 소스가 필요한 프로젝트는 해당 프로젝트의 빌드 도구로 JAR을 만들고 JSmooth에 연결한다. 제공 스크립트는 단일 소스로 컴파일되는 예제용이다.
+JSmooth가 필요한 작업은 [scripts/build-java-exes.ps1](scripts/build-java-exes.ps1)을 사용한다. 이 사용자의 실행 복구는 위의 최우선 콘솔형 실행기를 먼저 참고한다. 외부 라이브러리·공유 소스가 필요한 프로젝트는 해당 프로젝트의 빌드 도구로 JAR을 만든다. 기존 JSmooth 스크립트는 단일 소스로 컴파일되는 예제용이다.
 
 스크립트는 PowerShell 7에서 실행한다. 클래스별 기본 인수는 `-DefaultArguments @{Example3=@('10','20','30')}`로 지정한다. 현재 인수 입력은 공백·따옴표·역슬래시가 없는 단순 토큰만 지원한다. 값을 임의로 정하지 말고 기존 실행 설정이나 사용자 지정값을 사용한다.
 
