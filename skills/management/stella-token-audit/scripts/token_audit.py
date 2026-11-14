@@ -1,4 +1,6 @@
-"""Offline text-token and caller-supplied whole-task usage comparisons. Never calls an AI API."""
+"""Text-token and caller-supplied whole-task usage comparisons.
+Offline by default. Only `text --counter claude` calls the Anthropic count_tokens endpoint
+(counting only, no generation); it never runs unless that flag is given explicitly."""
 import argparse
 import hashlib
 import json
@@ -18,8 +20,13 @@ def delta(before, after):
 def read_json(path):
     return json.loads(Path(path).read_text('utf-8-sig'))
 
-def text_comparison(before, after, encoding, required):
-    a, b = len(encoding.encode_ordinary(before)), len(encoding.encode_ordinary(after))
+def text_comparison(before, after, encoding, required, counter=None):
+    """encoding: a tiktoken Encoding, or None when counter=(name, count_fn) is given."""
+    if counter:
+        name, count = counter
+    else:
+        name, count = 'tiktoken:'+encoding.name, lambda s: len(encoding.encode_ordinary(s))
+    a, b = count(before), count(after)
     if not isinstance(required,list) or any(not isinstance(x,str) or not x for x in required):
         raise ValueError('required facts must be a list of nonempty strings')
     baseline_missing = [x for x in required if x not in before]
@@ -34,11 +41,14 @@ def text_comparison(before, after, encoding, required):
         status='text_tokens_unchanged'
     else:
         status='text_tokens_increased'
-    return {'mode':'text','status':status,'encoding':encoding.name,'text_tokens':delta(a,b),
+    caveat='Supplied plain text only; excludes hidden context, tool wrapping, images, output/reasoning, retries and preparation calls.'
+    if name.startswith('claude:'):
+        caveat+=' Claude counts include a small fixed per-message wrapper that cancels out in the difference.'
+    return {'mode':'text','status':status,'counter':name,'encoding':encoding.name if encoding else None,'text_tokens':delta(a,b),
             'required_literal_checks':{'count':len(required),'baseline_missing':baseline_missing,'after_missing':missing},
             'semantic_quality_verified':False,'whole_task_savings_verified':False,
             'sha256':{'before':hashlib.sha256(before.encode()).hexdigest(),'after':hashlib.sha256(after.encode()).hexdigest()},
-            'caveat':'Supplied plain text only; excludes hidden context, tool wrapping, images, output/reasoning, retries and preparation calls.'}
+            'caveat':caveat}
 
 def summarize_run(run):
     if run.get('origin') not in {'usage_export','synthetic_test'}:
@@ -101,13 +111,30 @@ def tokenizer(encoding, runtime, cache):
     tiktoken.load.read_file=deny_download
     return tiktoken.get_encoding(encoding)
 
+def claude_counter(model, client=None):
+    """Exact Claude input-token count via messages.count_tokens. Counting only; no text is generated."""
+    if client is None:
+        try:
+            from anthropic import Anthropic
+        except ImportError as exc:
+            raise ValueError('Claude counting needs the anthropic package (pip install anthropic)') from exc
+        client=Anthropic()  # credentials: ANTHROPIC_API_KEY or an `ant auth login` profile
+    def count(text):
+        if not text:
+            return 0
+        return client.messages.count_tokens(model=model,messages=[{'role':'user','content':text}]).input_tokens
+    return ('claude:'+model, count)
+
 def main():
     p=argparse.ArgumentParser(description=__doc__)
     p.add_argument('--output',type=Path)
     sub=p.add_subparsers(dest='mode',required=True)
     t=sub.add_parser('text')
     t.add_argument('before',type=Path);t.add_argument('after',type=Path)
-    t.add_argument('--encoding',required=True)
+    t.add_argument('--counter',choices=['tiktoken','claude'],default='tiktoken',
+                   help='tiktoken: offline OpenAI encoding. claude: Anthropic count_tokens API (network, counting only)')
+    t.add_argument('--encoding',help='tiktoken encoding, e.g. o200k_base (required for --counter tiktoken)')
+    t.add_argument('--model',help='Claude model id, e.g. claude-opus-5-5 (required for --counter claude)')
     t.add_argument('--runtime',type=Path);t.add_argument('--cache-dir',type=Path)
     t.add_argument('--required',type=Path,help='JSON list of literal facts; not a semantic grader')
     u=sub.add_parser('usage');u.add_argument('before',type=Path);u.add_argument('after',type=Path)
@@ -115,8 +142,14 @@ def main():
     if args.output and args.output.resolve() in {args.before.resolve(),args.after.resolve(),getattr(args,'required',None).resolve() if getattr(args,'required',None) else None}:
         raise ValueError('Output must not overwrite evidence inputs')
     if args.mode=='text':
-        enc=tokenizer(args.encoding,args.runtime,args.cache_dir)
-        result=text_comparison(args.before.read_text('utf-8-sig'),args.after.read_text('utf-8-sig'),enc,read_json(args.required) if args.required else [])
+        required=read_json(args.required) if args.required else []
+        before,after=args.before.read_text('utf-8-sig'),args.after.read_text('utf-8-sig')
+        if args.counter=='claude':
+            if not args.model: raise ValueError('--counter claude needs --model (do not guess the model)')
+            result=text_comparison(before,after,None,required,counter=claude_counter(args.model))
+        else:
+            if not args.encoding: raise ValueError('--counter tiktoken needs --encoding')
+            result=text_comparison(before,after,tokenizer(args.encoding,args.runtime,args.cache_dir),required)
     else: result=usage_comparison(read_json(args.before),read_json(args.after))
     rendered=json.dumps(result,ensure_ascii=False,indent=2)
     if args.output:

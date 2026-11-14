@@ -29,4 +29,29 @@ class Audit(unittest.TestCase):
     def test_missing_usage_rejected(self):
         r=run();r['calls'][0].pop('usage')
         with self.assertRaises(ValueError):audit.summarize_run(r)
+class FakeClaude:
+    """Stands in for anthropic.Anthropic(); counts characters + 3 wrapper tokens, makes no network call."""
+    def __init__(self):
+        self.calls=[]
+        outer=self
+        class Messages:
+            def count_tokens(self,model,messages):
+                outer.calls.append(model)
+                return type('R',(),{'input_tokens':len(messages[0]['content'])+3})()
+        self.messages=Messages()
+class ClaudeCounter(unittest.TestCase):
+    def test_claude_counter_reduction(self):
+        fake=FakeClaude()
+        r=audit.text_comparison('abcdefghij','abc',None,['abc'],counter=audit.claude_counter('claude-opus-5-5',fake))
+        self.assertEqual(r['status'],'text_tokens_reduced_only')
+        self.assertEqual(r['counter'],'claude:claude-opus-5-5')
+        self.assertEqual(r['text_tokens']['saved'],7)
+        self.assertEqual(fake.calls,['claude-opus-5-5']*2)
+    def test_claude_required_text_missing(self):
+        r=audit.text_comparison('keep this','short',None,['keep'],counter=audit.claude_counter('m',FakeClaude()))
+        self.assertEqual(r['status'],'required_text_missing')
+    def test_empty_text_skips_api(self):
+        fake=FakeClaude()
+        name,count=audit.claude_counter('m',fake)
+        self.assertEqual(count(''),0);self.assertEqual(fake.calls,[])
 if __name__=='__main__':unittest.main()
