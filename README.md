@@ -1,6 +1,6 @@
 # Stella
 
-자료 이해·요약·학습·리서치를 위한 AI 스킬 25개를 목적별로 모았습니다.
+자료 이해·요약·학습·리서치를 위한 AI 스킬 29개를 목적별로 모았습니다.
 
 ## 분야별로 찾기
 
@@ -11,6 +11,7 @@
 | [강의 요약](skills/summaries/README.md) | 강의 자료와 필기를 과목과 자료 형태에 맞춰 정리합니다. | 3 |
 | [학습·복습](skills/study/README.md) | 실제 문제 풀이, 답안 피드백, 계획과 오답 복습에 사용합니다. | 6 |
 | [리서치·보안](skills/research/README.md) | 기업 조사나 보안 검토가 요청됐을 때만 선택합니다. | 2 |
+| [개발](skills/development/README.md) | Java 빌드, UI 디자인, MCP 서버, 웹앱 테스트, 문서 공동 작성에 사용합니다. | 5 |
 
 ## 폴더 구조
 
@@ -20,7 +21,8 @@ skills/
 ├─ sources/     자료 읽기·검색·저장본 재사용
 ├─ summaries/   강의 요약·대본 정리
 ├─ study/       문제 풀이·계획·오답 복습
-└─ research/    기업 리서치·보안 검토
+├─ research/    기업 리서치·보안 검토
+└─ development/ 빌드·UI·MCP·테스트·문서 작성
 ```
 
 각 스킬 폴더의 SKILL.md가 진입점입니다. 필요한 references/·scripts/·라이선스는 그 스킬과 함께 보관합니다. 오답 복습 도우미는 study/study-spaced-review/references/study-engine/에 있습니다.
@@ -43,3 +45,9 @@ Lunalumen/-의 커밋 2b524f08161c16c399d58742c361301110fec0c3에서 가져온 �
 짧은 프롬프트 작성: [stella-concise-prompt](skills/sources/stella-concise-prompt/SKILL.md).
 
 토큰 절감 평가: [stella-token-audit](skills/management/stella-token-audit/SKILL.md). 제공 텍스트와 전체 작업 사용량 로그를 구분하며 실제 사용량 근거 없이는 전체 절감을 판정하지 않습니다.
+
+## Anthropic 스킬과 Ponytail
+
+[개발](skills/development/README.md)에 anthropics/skills의 frontend-design·mcp-builder·webapp-testing·doc-coauthoring을 추가했습니다. 커밋과 해시는 [upstream-lock.json](upstream-lock.json)에 있습니다.
+
+Ponytail(DietrichGebert/ponytail)은 훅이 있는 Claude Code 플러그인이라 스킬로 복사하지 않고 [.claude/settings.json](.claude/settings.json)에 등록했습니다. 이 저장소를 Claude Code로 열면 설치 여부를 묻습니다.

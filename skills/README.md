@@ -8,6 +8,6 @@
 - [학습·복습](study/README.md): 6개
 - [리서치·보안](research/README.md): 2개
 
-- [Java 빌드·배포](development/README.md): 1개
+- [개발](development/README.md): 5개
 
 [Stella 홈](../README.md)
