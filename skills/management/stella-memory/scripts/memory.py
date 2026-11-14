@@ -1,0 +1,490 @@
+"""Stella Memory: local SQLite store of user-requested memories shared by ChatGPT and Claude.
+
+Standard library only. Every command is scoped to --project. Writes are single BEGIN IMMEDIATE
+transactions with a finite busy timeout and no retry loop. Deletion is logical for search/export
+purposes; the audit table never stores memory text or content hashes.
+Korean whitespace-tolerant matching (study_pattern) follows skills/sources/study-cache/scripts/study_cache.py.
+"""
+import argparse
+import hashlib
+import json
+import re
+import sqlite3
+import sys
+import unicodedata
+import uuid
+from datetime import datetime, timezone
+from pathlib import Path
+
+NAME_RE = re.compile(r'^[a-z0-9][a-z0-9._-]{0,63}$')
+KINDS = ('preference', 'constraint', 'decision', 'open_question')
+STATUSES = ('active', 'superseded', 'conflict', 'retired')
+TEXT_MAX = 2000
+SCHEMA = '''
+CREATE TABLE IF NOT EXISTS memories(
+  memory_id TEXT PRIMARY KEY, project TEXT NOT NULL, key TEXT NOT NULL, key_provisional INTEGER NOT NULL DEFAULT 0,
+  kind TEXT NOT NULL CHECK(kind IN ('preference','constraint','decision','open_question')),
+  status TEXT NOT NULL CHECK(status IN ('active','superseded','conflict','retired')),
+  created TEXT NOT NULL, current_rev INTEGER NOT NULL);
+CREATE INDEX IF NOT EXISTS memories_scope ON memories(project, key, status);
+CREATE TABLE IF NOT EXISTS revisions(
+  memory_id TEXT NOT NULL, rev INTEGER NOT NULL, text TEXT NOT NULL, content_hash TEXT NOT NULL,
+  actor TEXT NOT NULL, requested_by TEXT NOT NULL, source_note TEXT NOT NULL DEFAULT '',
+  source_verified INTEGER NOT NULL DEFAULT 0, created TEXT NOT NULL, superseded_by TEXT,
+  PRIMARY KEY(memory_id, rev));
+CREATE TABLE IF NOT EXISTS conflicts(
+  conflict_id TEXT PRIMARY KEY, project TEXT NOT NULL, key TEXT NOT NULL,
+  status TEXT NOT NULL CHECK(status IN ('open','resolved','dissolved')),
+  resolved_memory TEXT, resolved_rev INTEGER, resolved_by TEXT, resolved_at TEXT, created TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS conflict_members(
+  conflict_id TEXT NOT NULL, memory_id TEXT NOT NULL, rev INTEGER NOT NULL, PRIMARY KEY(conflict_id, memory_id));
+CREATE TABLE IF NOT EXISTS audit(
+  id INTEGER PRIMARY KEY AUTOINCREMENT, op TEXT NOT NULL, memory_id TEXT, project TEXT NOT NULL,
+  key TEXT, revs INTEGER, actor TEXT NOT NULL, at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS tombstones(memory_id TEXT PRIMARY KEY, project TEXT NOT NULL, deleted_at TEXT NOT NULL);
+'''
+
+
+def now():
+    return datetime.now(timezone.utc).strftime('%Y-%m-%dT%H:%M:%SZ')
+
+
+def normalize(text):
+    """Conservative: NFC + strip ends only. Case and inner whitespace are preserved."""
+    return unicodedata.normalize('NFC', text).strip()
+
+
+def content_hash(text):
+    return hashlib.sha256(normalize(text).encode('utf-8')).hexdigest()
+
+
+def check_name(value, what):
+    if not isinstance(value, str) or not NAME_RE.match(value):
+        raise ValueError(f'{what} must match {NAME_RE.pattern}')
+    return value
+
+
+def check_text(text):
+    if not isinstance(text, str) or not normalize(text):
+        raise ValueError('text must be a nonempty string')
+    if len(text) > TEXT_MAX:
+        raise ValueError(f'text exceeds {TEXT_MAX} characters')
+    return normalize(text)
+
+
+def check_kind(kind):
+    if kind not in KINDS:
+        raise ValueError(f'kind must be one of {KINDS}')
+    return kind
+
+
+def study_pattern(term):
+    # From study_cache.py: Hangul terms ignore internal spacing; other terms match literally.
+    return r'\s*'.join(re.escape(ch) for ch in term) if re.fullmatch(r'[가-힣]+', term) else re.escape(term)
+
+
+class Store:
+    def __init__(self, path, project, actor):
+        self.project = check_name(project, 'project')
+        self.actor = check_name(actor, 'actor')
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
+        self.db = sqlite3.connect(path, timeout=5.0, isolation_level=None)
+        self.db.row_factory = sqlite3.Row
+        self.db.execute('PRAGMA busy_timeout=5000')
+        self.db.executescript(SCHEMA)
+
+    # --- helpers -------------------------------------------------------
+    def _begin(self):
+        self.db.execute('BEGIN IMMEDIATE')
+
+    def _audit(self, op, memory_id=None, key=None, revs=None):
+        self.db.execute('INSERT INTO audit(op,memory_id,project,key,revs,actor,at) VALUES(?,?,?,?,?,?,?)',
+                        (op, memory_id, self.project, key, revs, self.actor, now()))
+
+    def _memory(self, memory_id):
+        row = self.db.execute('SELECT * FROM memories WHERE memory_id=? AND project=?', (memory_id, self.project)).fetchone()
+        if row is None:
+            raise ValueError('not_found_in_project')
+        return row
+
+    def _current(self, memory_id):
+        return self.db.execute('SELECT r.* FROM revisions r JOIN memories m ON m.memory_id=r.memory_id AND m.current_rev=r.rev '
+                               'WHERE r.memory_id=?', (memory_id,)).fetchone()
+
+    def _open_conflict(self, key):
+        return self.db.execute("SELECT * FROM conflicts WHERE project=? AND key=? AND status='open'", (self.project, key)).fetchone()
+
+    def _conflict_of(self, memory_id):
+        return self.db.execute("SELECT c.* FROM conflicts c JOIN conflict_members cm ON cm.conflict_id=c.conflict_id "
+                               "WHERE cm.memory_id=? AND c.status='open'", (memory_id,)).fetchone()
+
+    def _record(self, memory, rev=None):
+        rev = rev or self._current(memory['memory_id'])
+        conflict = self._conflict_of(memory['memory_id'])
+        return {'memory_id': memory['memory_id'], 'project': memory['project'], 'key': memory['key'],
+                'key_provisional': bool(memory['key_provisional']), 'kind': memory['kind'], 'status': memory['status'],
+                'rev': rev['rev'], 'text': rev['text'], 'actor': rev['actor'], 'requested_by': rev['requested_by'],
+                'source_note': rev['source_note'], 'source_verified': bool(rev['source_verified']),
+                'created': memory['created'], 'updated': rev['created'],
+                'conflict_id': conflict['conflict_id'] if conflict else None}
+
+    # --- commands ------------------------------------------------------
+    def add(self, text, kind, key=None, requested_by='user', source_note='', reactivate=False, allow_resurrect=False,
+            memory_id=None):
+        text = check_text(text)
+        check_kind(kind)
+        check_name(requested_by, 'requested_by')
+        h = content_hash(text)
+        provisional = key is None
+        mid = memory_id or str(uuid.uuid4())
+        if memory_id:
+            check_name(memory_id.replace('-', ''), 'memory_id')
+        key = f'unclassified.{mid[:8]}' if provisional else check_name(key, 'key')
+        self._begin()
+        try:
+            if self.db.execute('SELECT 1 FROM tombstones WHERE memory_id=?', (mid,)).fetchone() and not allow_resurrect:
+                raise ValueError('memory_id_deleted; pass --allow-resurrect to reinstate')
+            peers = self.db.execute("SELECT m.*, r.content_hash FROM memories m JOIN revisions r ON r.memory_id=m.memory_id "
+                                    "AND r.rev=m.current_rev WHERE m.project=? AND m.key=? AND m.status!='superseded'",
+                                    (self.project, key)).fetchall()
+            same = [p for p in peers if p['content_hash'] == h]
+            if same:
+                peer = same[0]
+                if peer['status'] == 'retired':
+                    if not reactivate:
+                        self.db.execute('COMMIT')
+                        return {'status': 'retired_exists', 'memory_id': peer['memory_id'], 'key': key}
+                    self.db.execute("UPDATE memories SET status='active' WHERE memory_id=?", (peer['memory_id'],))
+                    self._audit('reactivate', peer['memory_id'], key, peer['current_rev'])
+                    self.db.execute('COMMIT')
+                    return {'status': 'reactivated', 'memory_id': peer['memory_id'], 'key': key}
+                self.db.execute('COMMIT')
+                return {'status': 'unchanged', 'memory_id': peer['memory_id'], 'key': key}
+            live = [p for p in peers if p['status'] in ('active', 'conflict')]
+            ts = now()
+            self.db.execute('INSERT INTO memories VALUES(?,?,?,?,?,?,?,?)',
+                            (mid, self.project, key, int(provisional), kind, 'active', ts, 1))
+            self.db.execute('INSERT INTO revisions(memory_id,rev,text,content_hash,actor,requested_by,source_note,source_verified,created) '
+                            'VALUES(?,?,?,?,?,?,?,?,?)', (mid, 1, text, h, self.actor, requested_by, source_note, 0, ts))
+            self._audit('add', mid, key, 1)
+            result = {'status': 'created', 'memory_id': mid, 'key': key, 'key_provisional': provisional, 'rev': 1}
+            if live and not provisional:
+                conflict = self._open_conflict(key)
+                cid = conflict['conflict_id'] if conflict else str(uuid.uuid4())
+                if not conflict:
+                    self.db.execute("INSERT INTO conflicts(conflict_id,project,key,status,created) VALUES(?,?,?,'open',?)",
+                                    (cid, self.project, key, ts))
+                    for p in live:
+                        self.db.execute('INSERT OR IGNORE INTO conflict_members VALUES(?,?,?)', (cid, p['memory_id'], p['current_rev']))
+                        self.db.execute("UPDATE memories SET status='conflict' WHERE memory_id=?", (p['memory_id'],))
+                self.db.execute('INSERT OR IGNORE INTO conflict_members VALUES(?,?,?)', (cid, mid, 1))
+                self.db.execute("UPDATE memories SET status='conflict' WHERE memory_id=?", (mid,))
+                self._audit('conflict_candidate', mid, key, 1)
+                result.update(status='conflict_candidate', conflict_id=cid,
+                              candidates=len(live) + 1, note='same key holds different content; user decides via resolve')
+            self.db.execute('COMMIT')
+            return result
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
+
+    def search(self, query, limit=5, max_chars=1500, include_global=False):
+        terms = list(dict.fromkeys(re.findall(r'[\w-]+', query)))
+        if not terms:
+            raise ValueError('Provide at least one search term')
+        patterns = [re.compile(study_pattern(t), re.IGNORECASE) for t in terms]
+        projects = [self.project] + (['global'] if include_global and self.project != 'global' else [])
+        rows = self.db.execute(f"SELECT m.*, r.text, r.created AS updated FROM memories m JOIN revisions r ON r.memory_id=m.memory_id "
+                               f"AND r.rev=m.current_rev WHERE m.project IN ({','.join('?' * len(projects))}) "
+                               f"AND m.status IN ('active','conflict')", projects).fetchall()
+        hits = []
+        for row in rows:
+            counts = [len(p.findall(row['text'])) + len(p.findall(row['key'])) for p in patterns]
+            matched = sum(c > 0 for c in counts)
+            if matched:
+                hits.append((matched, min(sum(counts), 20), row))
+        hits.sort(key=lambda h: (-h[0], -h[1], h[2]['updated']))
+        selected, used, omitted = [], 0, []
+        for matched, score, row in hits:
+            if len(selected) >= limit:
+                omitted.append(row['memory_id'])
+                continue
+            text = row['text']
+            truncated = False
+            if used + len(text) > max_chars:
+                room = max_chars - used
+                if selected or room <= 0:
+                    omitted.append(row['memory_id'])
+                    continue
+                text, truncated = text[:room], True
+            used += len(text)
+            conflict = self._conflict_of(row['memory_id'])
+            selected.append({'memory_id': row['memory_id'], 'project': row['project'], 'key': row['key'], 'kind': row['kind'],
+                             'status': row['status'], 'rev': row['current_rev'], 'text': text, 'truncated': truncated,
+                             'matched_terms': matched, 'updated': row['updated'],
+                             'conflict_id': conflict['conflict_id'] if conflict else None})
+        conflicts = {}
+        for matched, score, row in hits:
+            c = self._conflict_of(row['memory_id'])
+            if c:
+                entry = conflicts.setdefault(c['conflict_id'], {'conflict_id': c['conflict_id'], 'key': c['key'], 'candidates': 0, 'shown': 0})
+                entry['candidates'] = self.db.execute('SELECT COUNT(*) FROM conflict_members WHERE conflict_id=?', (c['conflict_id'],)).fetchone()[0]
+                entry['shown'] += any(s['memory_id'] == row['memory_id'] for s in selected)
+        for entry in conflicts.values():
+            entry['omitted'] = entry['candidates'] - entry['shown']
+        return {'mode': 'keyword', 'scope': {'project': self.project, 'include_global': include_global},
+                'query_terms': terms, 'total_matched': len(hits), 'returned': len(selected), 'omitted_ids': omitted,
+                'partial': bool(omitted) or any(s['truncated'] for s in selected), 'chars_returned': used,
+                'budget': {'limit': limit, 'max_chars': max_chars}, 'conflicts': list(conflicts.values()), 'results': selected,
+                'note': 'absence from results is not proof the fact was never stored'}
+
+    def show(self, memory_id=None, conflict_id=None, include_all=False):
+        if conflict_id:
+            c = self.db.execute('SELECT * FROM conflicts WHERE conflict_id=? AND project=?', (conflict_id, self.project)).fetchone()
+            if c is None:
+                raise ValueError('not_found_in_project')
+            members = [self._record(self._memory(m['memory_id'])) for m in
+                       self.db.execute('SELECT * FROM conflict_members WHERE conflict_id=?', (conflict_id,))]
+            return {'conflict': dict(c), 'members': members}
+        if memory_id:
+            m = self._memory(memory_id)
+            rec = self._record(m)
+            if include_all:
+                rec['revisions'] = [dict(r) for r in self.db.execute('SELECT * FROM revisions WHERE memory_id=? ORDER BY rev', (memory_id,))]
+            return rec
+        status_filter = '' if include_all else "AND status IN ('active','conflict')"
+        rows = self.db.execute(f'SELECT * FROM memories WHERE project=? {status_filter} ORDER BY key, created', (self.project,)).fetchall()
+        return {'project': self.project, 'count': len(rows), 'memories': [self._record(r) for r in rows]}
+
+    def update(self, memory_id, expect_rev, text, kind=None, requested_by='user', source_note=''):
+        text = check_text(text)
+        check_name(requested_by, 'requested_by')
+        if kind:
+            check_kind(kind)
+        self._begin()
+        try:
+            m = self._memory(memory_id)
+            if m['status'] in ('superseded', 'retired'):
+                raise ValueError(f"memory is {m['status']}; cannot update")
+            if m['current_rev'] != expect_rev:
+                self._audit('update_rejected', memory_id, m['key'], m['current_rev'])
+                self.db.execute('COMMIT')
+                return {'status': 'stale_revision', 'conflict': True, 'memory_id': memory_id,
+                        'expected_rev': expect_rev, 'current_rev': m['current_rev'],
+                        'note': 'another change landed first; re-read with show and decide'}
+            h = content_hash(text)
+            if self._current(memory_id)['content_hash'] == h and not kind:
+                self.db.execute('COMMIT')
+                return {'status': 'unchanged', 'memory_id': memory_id, 'rev': expect_rev}
+            new_rev, ts = expect_rev + 1, now()
+            self.db.execute('INSERT INTO revisions(memory_id,rev,text,content_hash,actor,requested_by,source_note,source_verified,created) '
+                            'VALUES(?,?,?,?,?,?,?,?,?)', (memory_id, new_rev, text, h, self.actor, requested_by, source_note, 0, ts))
+            self.db.execute('UPDATE revisions SET superseded_by=? WHERE memory_id=? AND rev=?', (f'{memory_id}:{new_rev}', memory_id, expect_rev))
+            changed = self.db.execute('UPDATE memories SET current_rev=?, kind=COALESCE(?,kind) WHERE memory_id=? AND current_rev=?',
+                                      (new_rev, kind, memory_id, expect_rev)).rowcount
+            if changed != 1:
+                raise ValueError('concurrent modification detected')
+            self.db.execute('UPDATE conflict_members SET rev=? WHERE memory_id=?', (new_rev, memory_id))
+            self._audit('update', memory_id, m['key'], new_rev)
+            self.db.execute('COMMIT')
+            return {'status': 'updated', 'memory_id': memory_id, 'rev': new_rev}
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
+
+    def resolve(self, conflict_id, keep, resolved_by='user'):
+        keep_id, _, keep_rev = keep.partition(':')
+        check_name(resolved_by, 'resolved_by')
+        self._begin()
+        try:
+            c = self.db.execute("SELECT * FROM conflicts WHERE conflict_id=? AND project=? AND status='open'", (conflict_id, self.project)).fetchone()
+            if c is None:
+                raise ValueError('open conflict not_found_in_project')
+            members = self.db.execute('SELECT * FROM conflict_members WHERE conflict_id=?', (conflict_id,)).fetchall()
+            ids = {m['memory_id'] for m in members}
+            if keep_id not in ids:
+                raise ValueError('kept memory is not a member of this conflict')
+            kept = self._memory(keep_id)
+            if keep_rev and int(keep_rev) != kept['current_rev']:
+                raise ValueError(f"kept revision {keep_rev} is not current ({kept['current_rev']}); re-read first")
+            ts = now()
+            for m in members:
+                if m['memory_id'] == keep_id:
+                    self.db.execute("UPDATE memories SET status='active' WHERE memory_id=?", (keep_id,))
+                else:
+                    self.db.execute("UPDATE memories SET status='superseded' WHERE memory_id=?", (m['memory_id'],))
+                    self.db.execute('UPDATE revisions SET superseded_by=? WHERE memory_id=? AND rev=?',
+                                    (f"{keep_id}:{kept['current_rev']}", m['memory_id'], m['rev']))
+            self.db.execute("UPDATE conflicts SET status='resolved', resolved_memory=?, resolved_rev=?, resolved_by=?, resolved_at=? WHERE conflict_id=?",
+                            (keep_id, kept['current_rev'], resolved_by, ts, conflict_id))
+            self._audit('resolve', keep_id, c['key'], len(members))
+            self.db.execute('COMMIT')
+            return {'status': 'resolved', 'conflict_id': conflict_id, 'kept': keep_id,
+                    'superseded': sorted(ids - {keep_id})}
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
+
+    def retire(self, memory_id):
+        self._begin()
+        try:
+            m = self._memory(memory_id)
+            self.db.execute("UPDATE memories SET status='retired' WHERE memory_id=?", (memory_id,))
+            self._dissolve_if_single(m)
+            self._audit('retire', memory_id, m['key'], m['current_rev'])
+            self.db.execute('COMMIT')
+            return {'status': 'retired', 'memory_id': memory_id, 'note': 'kept in store; excluded from search and new exports'}
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
+
+    def _dissolve_if_single(self, m):
+        c = self._conflict_of(m['memory_id'])
+        if not c:
+            return
+        self.db.execute('DELETE FROM conflict_members WHERE conflict_id=? AND memory_id=?', (c['conflict_id'], m['memory_id']))
+        rest = self.db.execute('SELECT memory_id FROM conflict_members WHERE conflict_id=?', (c['conflict_id'],)).fetchall()
+        if len(rest) <= 1:
+            for r in rest:
+                self.db.execute("UPDATE memories SET status='active' WHERE memory_id=? AND status='conflict'", (r['memory_id'],))
+            self.db.execute("UPDATE conflicts SET status='dissolved', resolved_by='single_member_left', resolved_at=? WHERE conflict_id=?",
+                            (now(), c['conflict_id']))
+
+    def delete(self, memory_id, confirm=False):
+        if not confirm:
+            raise ValueError('delete requires --confirm (user-requested only)')
+        self._begin()
+        try:
+            m = self._memory(memory_id)
+            revs = self.db.execute('SELECT COUNT(*) FROM revisions WHERE memory_id=?', (memory_id,)).fetchone()[0]
+            self._dissolve_if_single(m)
+            self.db.execute('DELETE FROM revisions WHERE memory_id=?', (memory_id,))
+            self.db.execute('DELETE FROM memories WHERE memory_id=?', (memory_id,))
+            self.db.execute('INSERT OR REPLACE INTO tombstones VALUES(?,?,?)', (memory_id, self.project, now()))
+            self._audit('delete', memory_id, m['key'], revs)
+            self.db.execute('COMMIT')
+            return {'status': 'deleted', 'memory_id': memory_id, 'revisions_removed': revs,
+                    'note': 'logical deletion: removed from store, search and new exports; earlier exports/inbox copies and '
+                            'database pages/backups are not scrubbed'}
+        except Exception:
+            self.db.execute('ROLLBACK')
+            raise
+
+    def export(self, out, fmt='jsonl', include_retired=False):
+        out = Path(out)
+        if out.exists():
+            raise ValueError('output exists; choose a new path (no overwrite)')
+        statuses = "('active','conflict','retired')" if include_retired else "('active','conflict')"
+        rows = self.db.execute(f'SELECT * FROM memories WHERE project=? AND status IN {statuses} ORDER BY key, created', (self.project,)).fetchall()
+        records = [self._record(r) for r in rows]
+        out.parent.mkdir(parents=True, exist_ok=True)
+        if fmt == 'jsonl':
+            body = ''.join(json.dumps({k: v for k, v in r.items() if k not in ('actor',)}, ensure_ascii=False) + '\n' for r in records)
+        else:
+            lines = [f'대상: {self.project} / 기억 {len(records)}건', f'기준: {now()} 저장소 상태', '결과:']
+            for r in records:
+                flag = ' [충돌 미해결]' if r['conflict_id'] else ''
+                lines.append(f"- ({r['kind']}) {r['key']}{flag}: {r['text']}  <{r['memory_id'][:8]} r{r['rev']}>")
+            lines += ['확인: 저장소에서 직접 읽음. 사용자 발언 원문은 재확인하지 않음',
+                      '미확인: retired·삭제 건 제외. 검색 누락 ≠ 저장 부재', '다음: 수신자가 변경 제안은 JSONL로 inbox에 둠']
+            body = '\n'.join(lines) + '\n'
+        with out.open('x', encoding='utf-8') as f:
+            f.write(body)
+        self._audit('export', None, None, len(records))
+        return {'status': 'exported', 'path': str(out), 'count': len(records), 'format': fmt}
+
+    def import_jsonl(self, path, apply=False, requested_by='user', allow_resurrect=False):
+        check_name(requested_by, 'requested_by')
+        lines = Path(path).read_text(encoding='utf-8-sig').splitlines()
+        plan, errors = [], []
+        for n, line in enumerate(lines, 1):
+            if not line.strip():
+                continue
+            try:
+                row = json.loads(line)
+                if not isinstance(row, dict):
+                    raise ValueError('row must be an object')
+                if row.get('project') != self.project:
+                    raise ValueError(f"project {row.get('project')!r} does not match --project {self.project}")
+                item = {'text': check_text(row.get('text', '')), 'kind': check_kind(row.get('kind')),
+                        'key': check_name(row['key'], 'key') if row.get('key') else None,
+                        'memory_id': row.get('memory_id'), 'source_note': str(row.get('source_note', ''))[:500]}
+                if item['memory_id'] and self.db.execute('SELECT 1 FROM tombstones WHERE memory_id=?', (item['memory_id'],)).fetchone() \
+                        and not allow_resurrect:
+                    raise ValueError('memory_id was deleted; refusing to resurrect without --allow-resurrect')
+                plan.append(item)
+            except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
+                errors.append({'line': n, 'error': str(exc)})
+        result = {'status': 'dry_run', 'valid_rows': len(plan), 'errors': errors, 'applied': 0,
+                  'note': 'file author/source_verified fields are ignored; imported rows are source_verified=false'}
+        if errors or not apply:
+            if errors and apply:
+                result['status'] = 'rejected_no_changes'
+            return result
+        applied = []
+        for item in plan:
+            applied.append(self.add(item['text'], item['kind'], key=item['key'], requested_by=requested_by,
+                                    source_note=item['source_note'], allow_resurrect=allow_resurrect, memory_id=item['memory_id']))
+        result.update(status='applied', applied=len(applied), results=applied)
+        return result
+
+    def audit_log(self, limit=50):
+        rows = self.db.execute('SELECT * FROM audit WHERE project=? ORDER BY id DESC LIMIT ?', (self.project, limit)).fetchall()
+        return {'project': self.project, 'entries': [dict(r) for r in rows]}
+
+
+def main(argv=None):
+    p = argparse.ArgumentParser(description=__doc__.splitlines()[0])
+    p.add_argument('--db', required=True)
+    p.add_argument('--project', required=True)
+    p.add_argument('--actor', default='claude', help='who runs this command: claude, chatgpt, codex or user')
+    sub = p.add_subparsers(dest='cmd', required=True)
+    a = sub.add_parser('add'); a.add_argument('text'); a.add_argument('--kind', required=True, choices=KINDS)
+    a.add_argument('--key'); a.add_argument('--requested-by', default='user'); a.add_argument('--source-note', default='')
+    a.add_argument('--reactivate', action='store_true')
+    s = sub.add_parser('search'); s.add_argument('query'); s.add_argument('--limit', type=int, default=5)
+    s.add_argument('--max-chars', type=int, default=1500); s.add_argument('--include-global', action='store_true')
+    sh = sub.add_parser('show'); sh.add_argument('--id'); sh.add_argument('--conflict'); sh.add_argument('--all', action='store_true')
+    u = sub.add_parser('update'); u.add_argument('--id', required=True); u.add_argument('--expect-rev', type=int, required=True)
+    u.add_argument('text'); u.add_argument('--kind', choices=KINDS); u.add_argument('--requested-by', default='user')
+    u.add_argument('--source-note', default='')
+    r = sub.add_parser('resolve'); r.add_argument('--conflict', required=True); r.add_argument('--keep', required=True, help='memory_id[:rev]')
+    r.add_argument('--resolved-by', default='user')
+    rt = sub.add_parser('retire'); rt.add_argument('--id', required=True)
+    d = sub.add_parser('delete'); d.add_argument('--id', required=True); d.add_argument('--confirm', action='store_true')
+    e = sub.add_parser('export'); e.add_argument('--out', required=True); e.add_argument('--format', choices=['jsonl', 'handoff'], default='jsonl')
+    e.add_argument('--include-retired', action='store_true')
+    i = sub.add_parser('import'); i.add_argument('--file', required=True); i.add_argument('--apply', action='store_true')
+    i.add_argument('--requested-by', default='user'); i.add_argument('--allow-resurrect', action='store_true')
+    au = sub.add_parser('audit'); au.add_argument('--limit', type=int, default=50)
+    args = p.parse_args(argv)
+    st = Store(args.db, args.project, args.actor)
+    if args.cmd == 'add':
+        out = st.add(args.text, args.kind, key=args.key, requested_by=args.requested_by, source_note=args.source_note, reactivate=args.reactivate)
+    elif args.cmd == 'search':
+        out = st.search(args.query, args.limit, args.max_chars, args.include_global)
+    elif args.cmd == 'show':
+        out = st.show(args.id, args.conflict, args.all)
+    elif args.cmd == 'update':
+        out = st.update(args.id, args.expect_rev, args.text, args.kind, args.requested_by, args.source_note)
+    elif args.cmd == 'resolve':
+        out = st.resolve(args.conflict, args.keep, args.resolved_by)
+    elif args.cmd == 'retire':
+        out = st.retire(args.id)
+    elif args.cmd == 'delete':
+        out = st.delete(args.id, args.confirm)
+    elif args.cmd == 'export':
+        out = st.export(args.out, args.format, args.include_retired)
+    elif args.cmd == 'import':
+        out = st.import_jsonl(args.file, args.apply, args.requested_by, args.allow_resurrect)
+    else:
+        out = st.audit_log(args.limit)
+    print(json.dumps(out, ensure_ascii=False, indent=2))
+
+
+if __name__ == '__main__':
+    try:
+        main()
+    except (ValueError, OSError, KeyError, TypeError, sqlite3.Error) as exc:
+        print(json.dumps({'error': str(exc)}, ensure_ascii=False), file=sys.stderr)
+        sys.exit(1)
