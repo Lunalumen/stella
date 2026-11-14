@@ -129,8 +129,25 @@ class Store:
                 'conflict_id': conflict['conflict_id'] if conflict else None}
 
     # --- commands ------------------------------------------------------
-    def add(self, text, kind, key=None, requested_by='user', source_note='', reactivate=False, allow_resurrect=False,
-            memory_id=None):
+    def _join_conflict(self, key, mid, rev, live, ts):
+        """Put `mid` and every live peer of the same (project, key) into the open conflict group (create one if needed)."""
+        conflict = self._open_conflict(key)
+        cid = conflict['conflict_id'] if conflict else str(uuid.uuid4())
+        if not conflict:
+            self.db.execute("INSERT INTO conflicts(conflict_id,project,key,status,created) VALUES(?,?,?,'open',?)",
+                            (cid, self.project, key, ts))
+        for p in live:
+            self.db.execute('INSERT OR IGNORE INTO conflict_members VALUES(?,?,?)', (cid, p['memory_id'], p['current_rev']))
+            self.db.execute("UPDATE memories SET status='conflict' WHERE memory_id=?", (p['memory_id'],))
+        self.db.execute('INSERT OR IGNORE INTO conflict_members VALUES(?,?,?)', (cid, mid, rev))
+        self.db.execute("UPDATE memories SET status='conflict' WHERE memory_id=?", (mid,))
+        self._audit('conflict_candidate', mid, key, rev)
+        members = self.db.execute('SELECT COUNT(*) FROM conflict_members WHERE conflict_id=?', (cid,)).fetchone()[0]
+        return {'conflict_id': cid, 'candidates': members, 'note': 'same key holds different content; user decides via resolve'}
+
+    def _add_in_tx(self, text, kind, key=None, requested_by='user', source_note='', reactivate=False, allow_resurrect=False,
+                   memory_id=None):
+        """Body of add(); the caller owns the transaction (used by add and by import's single transaction)."""
         text = check_text(text)
         check_kind(kind)
         check_name(requested_by, 'requested_by')
@@ -139,49 +156,46 @@ class Store:
         mid = memory_id or str(uuid.uuid4())
         if memory_id:
             check_name(memory_id.replace('-', ''), 'memory_id')
+            if self.db.execute('SELECT 1 FROM memories WHERE memory_id=?', (mid,)).fetchone():
+                raise ValueError('memory_id_exists; import cannot create a memory under an existing id (use update)')
         key = f'unclassified.{mid[:8]}' if provisional else check_name(key, 'key')
+        if self.db.execute('SELECT 1 FROM tombstones WHERE memory_id=?', (mid,)).fetchone() and not allow_resurrect:
+            raise ValueError('memory_id_deleted; pass --allow-resurrect to reinstate')
+        peers = self.db.execute("SELECT m.*, r.content_hash, r.text AS cur_text FROM memories m JOIN revisions r "
+                                "ON r.memory_id=m.memory_id AND r.rev=m.current_rev "
+                                "WHERE m.project=? AND m.key=? AND m.status!='superseded'", (self.project, key)).fetchall()
+        # Hash equality alone is not identity: confirm the normalized text too (review-chatgpt-2 hash-injection note).
+        same = [p for p in peers if p['content_hash'] == h and normalize(p['cur_text']) == text]
+        live = [p for p in peers if p['status'] in ('active', 'conflict')]
+        ts = now()
+        if same:
+            peer = same[0]
+            if peer['status'] != 'retired':
+                return {'status': 'unchanged', 'memory_id': peer['memory_id'], 'key': key}
+            if not reactivate:
+                return {'status': 'retired_exists', 'memory_id': peer['memory_id'], 'key': key}
+            self.db.execute("UPDATE memories SET status='active' WHERE memory_id=?", (peer['memory_id'],))
+            self._audit('reactivate', peer['memory_id'], key, peer['current_rev'])
+            result = {'status': 'reactivated', 'memory_id': peer['memory_id'], 'key': key, 'rev': peer['current_rev']}
+            if live and not provisional:  # R2: a reactivated memory must face the same conflict check as a new one
+                result.update(self._join_conflict(key, peer['memory_id'], peer['current_rev'], live, ts))
+                result['status'] = 'reactivated_conflict_candidate'
+            return result
+        self.db.execute('INSERT INTO memories VALUES(?,?,?,?,?,?,?,?)',
+                        (mid, self.project, key, int(provisional), kind, 'active', ts, 1))
+        self.db.execute('INSERT INTO revisions(memory_id,rev,text,content_hash,actor,requested_by,source_note,source_verified,created) '
+                        'VALUES(?,?,?,?,?,?,?,?,?)', (mid, 1, text, h, self.actor, requested_by, source_note, 0, ts))
+        self._audit('add', mid, key, 1)
+        result = {'status': 'created', 'memory_id': mid, 'key': key, 'key_provisional': provisional, 'rev': 1}
+        if live and not provisional:
+            result.update(self._join_conflict(key, mid, 1, live, ts))
+            result['status'] = 'conflict_candidate'
+        return result
+
+    def add(self, *args, **kwargs):
         self._begin()
         try:
-            if self.db.execute('SELECT 1 FROM tombstones WHERE memory_id=?', (mid,)).fetchone() and not allow_resurrect:
-                raise ValueError('memory_id_deleted; pass --allow-resurrect to reinstate')
-            peers = self.db.execute("SELECT m.*, r.content_hash FROM memories m JOIN revisions r ON r.memory_id=m.memory_id "
-                                    "AND r.rev=m.current_rev WHERE m.project=? AND m.key=? AND m.status!='superseded'",
-                                    (self.project, key)).fetchall()
-            same = [p for p in peers if p['content_hash'] == h]
-            if same:
-                peer = same[0]
-                if peer['status'] == 'retired':
-                    if not reactivate:
-                        self.db.execute('COMMIT')
-                        return {'status': 'retired_exists', 'memory_id': peer['memory_id'], 'key': key}
-                    self.db.execute("UPDATE memories SET status='active' WHERE memory_id=?", (peer['memory_id'],))
-                    self._audit('reactivate', peer['memory_id'], key, peer['current_rev'])
-                    self.db.execute('COMMIT')
-                    return {'status': 'reactivated', 'memory_id': peer['memory_id'], 'key': key}
-                self.db.execute('COMMIT')
-                return {'status': 'unchanged', 'memory_id': peer['memory_id'], 'key': key}
-            live = [p for p in peers if p['status'] in ('active', 'conflict')]
-            ts = now()
-            self.db.execute('INSERT INTO memories VALUES(?,?,?,?,?,?,?,?)',
-                            (mid, self.project, key, int(provisional), kind, 'active', ts, 1))
-            self.db.execute('INSERT INTO revisions(memory_id,rev,text,content_hash,actor,requested_by,source_note,source_verified,created) '
-                            'VALUES(?,?,?,?,?,?,?,?,?)', (mid, 1, text, h, self.actor, requested_by, source_note, 0, ts))
-            self._audit('add', mid, key, 1)
-            result = {'status': 'created', 'memory_id': mid, 'key': key, 'key_provisional': provisional, 'rev': 1}
-            if live and not provisional:
-                conflict = self._open_conflict(key)
-                cid = conflict['conflict_id'] if conflict else str(uuid.uuid4())
-                if not conflict:
-                    self.db.execute("INSERT INTO conflicts(conflict_id,project,key,status,created) VALUES(?,?,?,'open',?)",
-                                    (cid, self.project, key, ts))
-                    for p in live:
-                        self.db.execute('INSERT OR IGNORE INTO conflict_members VALUES(?,?,?)', (cid, p['memory_id'], p['current_rev']))
-                        self.db.execute("UPDATE memories SET status='conflict' WHERE memory_id=?", (p['memory_id'],))
-                self.db.execute('INSERT OR IGNORE INTO conflict_members VALUES(?,?,?)', (cid, mid, 1))
-                self.db.execute("UPDATE memories SET status='conflict' WHERE memory_id=?", (mid,))
-                self._audit('conflict_candidate', mid, key, 1)
-                result.update(status='conflict_candidate', conflict_id=cid,
-                              candidates=len(live) + 1, note='same key holds different content; user decides via resolve')
+            result = self._add_in_tx(*args, **kwargs)
             self.db.execute('COMMIT')
             return result
         except Exception:
@@ -243,9 +257,20 @@ class Store:
             c = self.db.execute('SELECT * FROM conflicts WHERE conflict_id=? AND project=?', (conflict_id, self.project)).fetchone()
             if c is None:
                 raise ValueError('not_found_in_project')
-            members = [self._record(self._memory(m['memory_id'])) for m in
-                       self.db.execute('SELECT * FROM conflict_members WHERE conflict_id=?', (conflict_id,))]
-            return {'conflict': dict(c), 'members': members}
+            members = []
+            for m in self.db.execute('SELECT * FROM conflict_members WHERE conflict_id=?', (conflict_id,)):
+                row = self.db.execute('SELECT * FROM memories WHERE memory_id=? AND project=?', (m['memory_id'], self.project)).fetchone()
+                if row is not None:
+                    members.append(self._record(row))
+                    continue
+                # R3: history of a resolved/dissolved group may reference a memory deleted later; describe, don't fail.
+                tomb = self.db.execute('SELECT deleted_at FROM tombstones WHERE memory_id=?', (m['memory_id'],)).fetchone()
+                members.append({'memory_id': m['memory_id'], 'rev': m['rev'], 'status': 'deleted',
+                                'deleted_at': tomb['deleted_at'] if tomb else None, 'text': None})
+            conflict = dict(c)
+            conflict['resolved_memory_deleted'] = bool(c['resolved_memory']) and not self.db.execute(
+                'SELECT 1 FROM memories WHERE memory_id=?', (c['resolved_memory'],)).fetchone()
+            return {'conflict': conflict, 'members': members}
         if memory_id:
             m = self._memory(memory_id)
             rec = self._record(m)
@@ -357,7 +382,7 @@ class Store:
         try:
             m = self._memory(memory_id)
             revs = self.db.execute('SELECT COUNT(*) FROM revisions WHERE memory_id=?', (memory_id,)).fetchone()[0]
-            self._dissolve_if_single(m)
+            self._dissolve_if_single(m)  # leaves an open group; membership rows in resolved/dissolved groups stay as history
             self.db.execute('DELETE FROM revisions WHERE memory_id=?', (memory_id,))
             self.db.execute('DELETE FROM memories WHERE memory_id=?', (memory_id,))
             self.db.execute('INSERT OR REPLACE INTO tombstones VALUES(?,?,?)', (memory_id, self.project, now()))
@@ -395,8 +420,11 @@ class Store:
 
     def import_jsonl(self, path, apply=False, requested_by='user', allow_resurrect=False):
         check_name(requested_by, 'requested_by')
-        lines = Path(path).read_text(encoding='utf-8-sig').splitlines()
-        plan, errors = [], []
+        raw = Path(path).read_bytes()
+        if len(raw) > 5_000_000:
+            raise ValueError('import file exceeds 5 MB')
+        lines = raw.decode('utf-8-sig').splitlines()
+        plan, errors, seen_ids = [], [], {}
         for n, line in enumerate(lines, 1):
             if not line.strip():
                 continue
@@ -409,22 +437,39 @@ class Store:
                 item = {'text': check_text(row.get('text', '')), 'kind': check_kind(row.get('kind')),
                         'key': check_name(row['key'], 'key') if row.get('key') else None,
                         'memory_id': row.get('memory_id'), 'source_note': str(row.get('source_note', ''))[:500]}
-                if item['memory_id'] and self.db.execute('SELECT 1 FROM tombstones WHERE memory_id=?', (item['memory_id'],)).fetchone() \
-                        and not allow_resurrect:
-                    raise ValueError('memory_id was deleted; refusing to resurrect without --allow-resurrect')
+                mid = item['memory_id']
+                if mid is not None:
+                    if not isinstance(mid, str):
+                        raise ValueError('memory_id must be a string')
+                    check_name(mid.replace('-', ''), 'memory_id')
+                    if mid in seen_ids:
+                        raise ValueError(f'memory_id duplicated in file (first on line {seen_ids[mid]})')
+                    seen_ids[mid] = n
+                    if self.db.execute('SELECT 1 FROM memories WHERE memory_id=?', (mid,)).fetchone():
+                        raise ValueError('memory_id already exists in store; import does not overwrite (use update)')
+                    if self.db.execute('SELECT 1 FROM tombstones WHERE memory_id=?', (mid,)).fetchone() and not allow_resurrect:
+                        raise ValueError('memory_id was deleted; refusing to resurrect without --allow-resurrect')
                 plan.append(item)
             except (ValueError, KeyError, TypeError, json.JSONDecodeError) as exc:
                 errors.append({'line': n, 'error': str(exc)})
         result = {'status': 'dry_run', 'valid_rows': len(plan), 'errors': errors, 'applied': 0,
-                  'note': 'file author/source_verified fields are ignored; imported rows are source_verified=false'}
+                  'note': 'file author/source_verified fields are ignored; imported rows are source_verified=false; '
+                          'apply is all-or-nothing'}
         if errors or not apply:
             if errors and apply:
                 result['status'] = 'rejected_no_changes'
             return result
-        applied = []
-        for item in plan:
-            applied.append(self.add(item['text'], item['kind'], key=item['key'], requested_by=requested_by,
-                                    source_note=item['source_note'], allow_resurrect=allow_resurrect, memory_id=item['memory_id']))
+        # R1: one transaction for the whole file; any failure rolls back every row.
+        self._begin()
+        try:
+            applied = [self._add_in_tx(item['text'], item['kind'], key=item['key'], requested_by=requested_by,
+                                       source_note=item['source_note'], allow_resurrect=allow_resurrect, memory_id=item['memory_id'])
+                       for item in plan]
+            self.db.execute('COMMIT')
+        except Exception as exc:
+            self.db.execute('ROLLBACK')
+            result.update(status='rejected_no_changes', errors=[{'line': None, 'error': f'apply failed, rolled back: {exc}'}])
+            return result
         result.update(status='applied', applied=len(applied), results=applied)
         return result
 

@@ -238,5 +238,125 @@ class Tests(Base):
         self.assertTrue(r['key'].startswith('unclassified.') and r['key_provisional'])
 
 
+class Review2Regressions(Base):
+    """R1–R3 and the hash-injection note from review-chatgpt-2.md."""
+
+    def snapshot(self):
+        return {t: self.p1.db.execute(f'SELECT * FROM {t} ORDER BY 1').fetchall() for t in ('memories', 'revisions', 'audit', 'conflicts', 'conflict_members')}
+
+    def test_r1_import_is_all_or_nothing(self):
+        self.p1.add('기존 기억', 'decision', key='base')
+        before = self.snapshot()
+        f = Path(self.tmp.name) / 'dup.jsonl'
+        f.write_text(json.dumps({'project': 'p1', 'key': 'k1', 'kind': 'decision', 'text': 'A', 'memory_id': 'dup-id'}) + '\n'
+                     + json.dumps({'project': 'p1', 'key': 'k2', 'kind': 'decision', 'text': 'B', 'memory_id': 'dup-id'}) + '\n')
+        pre = self.p1.import_jsonl(str(f))
+        self.assertEqual((pre['status'], pre['valid_rows'], len(pre['errors'])), ('dry_run', 1, 1))
+        self.assertIn('duplicated in file', pre['errors'][0]['error'])
+        r = self.p1.import_jsonl(str(f), apply=True)
+        self.assertEqual((r['status'], r['applied']), ('rejected_no_changes', 0))
+        self.assertEqual(self.snapshot(), before)
+
+    def test_r1_existing_id_rejected_in_preview(self):
+        a = self.p1.add('원본', 'decision', key='k')
+        f = Path(self.tmp.name) / 'exists.jsonl'
+        f.write_text(json.dumps({'project': 'p1', 'key': 'k', 'kind': 'decision', 'text': '다른 내용', 'memory_id': a['memory_id']}) + '\n')
+        pre = self.p1.import_jsonl(str(f))
+        self.assertIn('already exists', pre['errors'][0]['error'])
+        before = self.snapshot()
+        self.assertEqual(self.p1.import_jsonl(str(f), apply=True)['status'], 'rejected_no_changes')
+        self.assertEqual(self.snapshot(), before)
+
+    def test_r1_runtime_failure_rolls_back_everything(self):
+        f = Path(self.tmp.name) / 'rt.jsonl'
+        f.write_text(''.join(json.dumps({'project': 'p1', 'key': f'k{i}', 'kind': 'decision', 'text': f'row {i}'}) + '\n' for i in range(3)))
+        before = self.snapshot()
+        original = mem.Store._add_in_tx
+        calls = {'n': 0}
+
+        def failing(self_, *a, **kw):
+            calls['n'] += 1
+            if calls['n'] == 3:
+                raise sqlite3.IntegrityError('synthetic failure on third row')
+            return original(self_, *a, **kw)
+        mem.Store._add_in_tx = failing
+        try:
+            r = self.p1.import_jsonl(str(f), apply=True)
+        finally:
+            mem.Store._add_in_tx = original
+        self.assertEqual((r['status'], r['applied']), ('rejected_no_changes', 0))
+        self.assertIn('rolled back', r['errors'][0]['error'])
+        self.assertEqual(self.snapshot(), before)
+        self.assertEqual(self.rows('memories'), 0)
+
+    def test_r2_reactivate_joins_conflict(self):
+        a = self.p1.add('A', 'decision', key='k')
+        self.p1.retire(a['memory_id'])
+        b = self.p1.add('B', 'decision', key='k')
+        self.assertEqual(b['status'], 'created')
+        r = self.p1.add('A', 'decision', key='k', reactivate=True)
+        self.assertEqual((r['status'], r['memory_id'], r['candidates']), ('reactivated_conflict_candidate', a['memory_id'], 2))
+        s = self.p1.search('A B')
+        self.assertEqual(sorted(x['status'] for x in s['results']), ['conflict', 'conflict'])
+        self.assertEqual((len(s['conflicts']), s['conflicts'][0]['candidates']), (1, 2))
+        self.p1.resolve(r['conflict_id'], b['memory_id'])
+        self.assertEqual(self.p1.show(memory_id=a['memory_id'])['status'], 'superseded')
+
+    def test_r2_reactivate_joins_existing_open_group(self):
+        a = self.p1.add('A', 'decision', key='k'); self.p1.retire(a['memory_id'])
+        b = self.p1.add('B', 'decision', key='k'); c = self.p1.add('C', 'decision', key='k')
+        r = self.p1.add('A', 'decision', key='k', reactivate=True)
+        self.assertEqual((r['conflict_id'], r['candidates']), (c['conflict_id'], 3))
+        self.assertEqual(self.rows('conflicts'), 1)
+
+    def test_r2_reactivate_without_peers_stays_plain(self):
+        a = self.p1.add('A', 'decision', key='k'); self.p1.retire(a['memory_id'])
+        r = self.p1.add('A', 'decision', key='k', reactivate=True)
+        self.assertEqual((r['status'], 'conflict_id' in r), ('reactivated', False))
+
+    def test_r3_delete_resolved_member_keeps_history_and_show_works(self):
+        a = self.p1.add('A', 'decision', key='k'); b = self.p1.add('B', 'decision', key='k')
+        self.p1.resolve(b['conflict_id'], b['memory_id'])
+        self.p1.delete(a['memory_id'], confirm=True)
+        view = self.p1.show(conflict_id=b['conflict_id'])
+        self.assertEqual(view['conflict']['status'], 'resolved')
+        self.assertFalse(view['conflict']['resolved_memory_deleted'])
+        by_id = {m['memory_id']: m for m in view['members']}
+        self.assertEqual(by_id[a['memory_id']]['status'], 'deleted')
+        self.assertIsNotNone(by_id[a['memory_id']]['deleted_at'])
+        self.assertIsNone(by_id[a['memory_id']]['text'])
+        self.assertEqual(by_id[b['memory_id']]['status'], 'active')
+        self.assertEqual(self.p1.search('A')['total_matched'], 0)
+
+    def test_r3_delete_kept_member_is_described(self):
+        a = self.p1.add('A', 'decision', key='k'); b = self.p1.add('B', 'decision', key='k')
+        self.p1.resolve(b['conflict_id'], b['memory_id'])
+        self.p1.delete(b['memory_id'], confirm=True)
+        view = self.p1.show(conflict_id=b['conflict_id'])
+        self.assertTrue(view['conflict']['resolved_memory_deleted'])
+        self.assertEqual({m['status'] for m in view['members']}, {'deleted', 'superseded'})
+
+    def test_r3_delete_open_member_dissolves_group(self):
+        a = self.p1.add('A', 'decision', key='k'); b = self.p1.add('B', 'decision', key='k')
+        self.p1.delete(a['memory_id'], confirm=True)
+        view = self.p1.show(conflict_id=b['conflict_id'])
+        self.assertEqual(view['conflict']['status'], 'dissolved')
+        self.assertEqual([m['memory_id'] for m in view['members']], [b['memory_id']])
+        self.assertEqual(self.p1.show(memory_id=b['memory_id'])['status'], 'active')
+
+    def test_hash_collision_does_not_merge_different_text(self):
+        original = mem.content_hash
+        mem.content_hash = lambda t: 'forced-same-hash'  # synthetic; not a real SHA-256 collision
+        try:
+            a = self.p1.add('A', 'decision', key='k')
+            b = self.p1.add('B', 'decision', key='k')
+            again = self.p1.add('A', 'decision', key='k')
+        finally:
+            mem.content_hash = original
+        self.assertEqual(b['status'], 'conflict_candidate')
+        self.assertNotEqual(a['memory_id'], b['memory_id'])
+        self.assertEqual((again['status'], again['memory_id']), ('unchanged', a['memory_id']))
+
+
 if __name__ == '__main__':
     unittest.main()

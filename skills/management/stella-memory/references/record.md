@@ -44,4 +44,15 @@ update: current_rev == expect_rev 일 때만 rev+1, 아니면 stale_revision(변
 ```
 
 ## 중복 판정
-같은 (project, key, content_hash)가 active/conflict면 `unchanged`, retired면 `retired_exists`. 다른 project나 key면 새 기억. 지문 일치 = 같은 문자열이지 같은 의미라는 뜻은 아니다.
+같은 (project, key)에서 content_hash **와 정규화 문자열이 모두** 같을 때만 동일 내용으로 본다(해시 일치만으로 합치지 않음). active/conflict면 `unchanged`, retired면 `retired_exists`. 다른 project나 key면 새 기억. 지문 일치 = 같은 문자열이지 같은 의미라는 뜻은 아니다.
+
+## 재활성화 (`add --reactivate`)
+retired 기억을 active로 되돌릴 때도 새 저장과 같은 충돌 검사를 거친다. 같은 key에 다른 live 기억이 있으면 열린 충돌 그룹에 합류하고 `reactivated_conflict_candidate`를 돌려준다. 재활성화 요청은 다른 후보와의 모순을 자동 해소하라는 뜻이 아니다.
+
+## import 정책
+- 적용은 **전체 성공 또는 전체 무변경**(한 트랜잭션). 어느 행이든 실패하면 모두 되돌리고 `rejected_no_changes`.
+- 미리보기(`--dry-run` 기본)에서 거부: 필수 필드 누락, project 불일치, 파일 안 `memory_id` 중복, 저장소에 이미 있는 `memory_id`(import는 덮어쓰지 않음, `update` 사용), tombstone에 있는 `memory_id`(`--allow-resurrect` 없을 때).
+- `memory_id`는 삭제·유실된 기억을 되돌릴 때만 넣는다. 파일 크기 5 MB 이하.
+
+## 삭제 후 충돌 이력
+`delete`는 열린 그룹에서는 멤버를 빼고 후보가 1개 이하면 그룹을 `dissolved`로 닫는다. resolved/dissolved 그룹의 멤버 행은 이력으로 남고, `show --conflict`는 삭제된 멤버를 `status: deleted, deleted_at, text: null`로 설명한다(`resolved_memory_deleted` 플래그 포함). 삭제된 원문은 어디에도 돌려주지 않는다.
