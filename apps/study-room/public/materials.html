@@ -1,0 +1,41 @@
+<!doctype html>
+<html lang="ko"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>명월 공부방 · 자료 읽기</title><link rel="stylesheet" href="/style.css"><link rel="stylesheet" href="/materials.css"><script defer src="/materials.js"></script></head>
+<body><header class="topbar material-header"><a class="brand" href="/"><span class="moon">◒</span><span>명월 <b>공부방</b><small>MYEONGWOL STUDY ROOM</small></span></a>
+<nav aria-label="주 메뉴"><a class="nav" href="/">문제 풀기</a><a class="nav active" href="/materials.html">자료 읽기</a></nav><span class="local-label">이 PC에서만 처리</span></header>
+<main><section class="hero"><div><p class="eyebrow">READ LESS, KEEP WHAT MATTERS</p><h1>필요한 근거만, 이어서 읽기</h1><p>선택한 자료를 유지하고, 전체 전달과 발췌 전달의 토큰을 비교해요.</p></div></section>
+<section class="card"><form id="search-form"><div class="material-selectors">
+<label class="field">시험<select id="exam"><option>기말고사</option><option>중간고사</option></select></label>
+<label class="field">과목<select id="course"></select></label>
+<label class="field grow">자료·회차<select id="group"></select></label></div>
+<p id="source-status" class="hint" aria-live="polite"></p>
+<label class="field">질문 또는 핵심어<input id="question" maxlength="500" placeholder="예: 수소결합 공유결합" required></label>
+<details class="material-options"><summary>발췌 분량·중요 표현 설정</summary>
+<label class="field">본문 발췌 한도<select id="budget"><option value="1200">1,200자</option><option value="3600" selected>3,600자</option><option value="7200">7,200자</option></select></label>
+<label class="field">꼭 남아야 할 표현 · 한 줄에 하나<textarea id="required" rows="3" placeholder="예: 분자 사이&#10;1200원"></textarea></label></details>
+<div class="actions"><button class="primary" id="search" type="submit">근거 찾기 · 토큰 비교</button><span id="busy" role="status"></span></div></form>
+<div id="error" role="alert"></div></section>
+<section id="result" hidden aria-live="polite">
+<div class="material-heading"><h2>전달할 텍스트 비교</h2><span id="cache-status" class="pill"></span></div>
+<div class="token-grid">
+<div class="card"><small>선택 범위 전체</small><strong id="before">—</strong><span>토큰</span></div>
+<div class="card"><small>검색 발췌</small><strong id="after">—</strong><span>토큰</span></div>
+<div class="card"><small id="delta-label">변화</small><strong id="delta">—</strong><span id="percent"></span></div></div>
+<div class="token-comparison" aria-label="전체 전달과 발췌 전달 비교"><div><span>전체</span><div class="token-track"><i id="before-bar"></i></div></div><div><span>발췌</span><div class="token-track"><i id="after-bar"></i></div></div></div>
+<p id="metric-note" class="notice"></p><p id="fact-status" class="hint"></p>
+<div class="material-heading"><h2>찾은 근거</h2><button id="copy-prompt" class="secondary" type="button">근거 포함 요청문 복사</button></div>
+<div id="evidence"></div>
+<section class="card quality-review"><h2>내용이 충분한지 직접 확인</h2><p>표현 포함 여부와 의미 정확성은 달라요. 자동 정답·학습 완료 판정은 하지 않아요.</p>
+<label><input type="checkbox" data-review="definition"> 정의가 질문에 답한다</label>
+<label><input type="checkbox" data-review="conditions"> 적용 조건·수치가 빠지지 않았다</label>
+<label><input type="checkbox" data-review="exceptions"> 예외·부정 조건을 확인했다</label>
+<label class="field">검토 메모<textarea id="review-note" rows="2" placeholder="예: 수식은 원본 확인 필요"></textarea></label><small>선택·질문·검토 메모는 이 브라우저에 저장됩니다. 풀이 점수·학습 진도는 바꾸지 않습니다.</small></section>
+</section>
+<details class="card" id="document-tools"><summary>PDF·사진의 원본 페이지 보기 / 표 추출 / OCR</summary>
+<p class="hint">6MB 이하 PDF·PNG·JPEG. 임시 검토함에만 저장하며 기말 출처·문제은행에 자동 등록하지 않아요.</p>
+<input id="local-file" type="file" accept=".pdf,.png,.jpg,.jpeg" aria-label="로컬 검토 파일">
+<button id="upload" class="secondary" type="button">선택 파일 열기</button><p id="document-status" role="status"></p>
+<div id="page-tools" hidden><div class="actions"><label class="field">페이지<input id="page" type="number" min="1" value="1"></label><button id="show-page" class="secondary" type="button">페이지 확인</button><label class="field">OCR 언어<select id="ocr-language"><option value="ko">한국어</option><option value="en-US">영어</option></select></label><button id="ocr" class="secondary" type="button">이 페이지만 OCR</button></div>
+<button id="extract-tables" class="secondary" type="button">이 페이지 표 추출</button><p id="table-status" role="status"></p><div id="page-tables"></div>
+<p id="ocr-capabilities" class="hint"></p><div class="page-columns"><img id="page-image" alt="선택한 원본 페이지"><div><h3>추출·인식 텍스트</h3><pre id="page-text"></pre><p id="ocr-status" role="status"></p><label><input type="checkbox" id="visual-review"> 원본과 숫자·표·수식을 직접 대조했다</label></div></div></div>
+</details></main><footer><span>명월 · 필요한 만큼, 차근차근</span><a href="/">문제 풀이로 돌아가기</a></footer></body></html>

@@ -1,0 +1,96 @@
+{
+  "schema": 1,
+  "sources": [
+    {
+      "id": "github",
+      "repository": "github/github-mcp-server",
+      "license": "MIT",
+      "sparse": [
+        "cmd",
+        "internal",
+        "pkg",
+        "docs",
+        "agent-plugin"
+      ],
+      "connector": "github",
+      "route": "GitHub 저장소·스킬·변경 확인"
+    },
+    {
+      "id": "workspace",
+      "repository": "taylorwilsdon/google_workspace_mcp",
+      "license": "MIT",
+      "sparse": [
+        "core",
+        "auth",
+        "gdrive",
+        "gdocs",
+        "gsheets",
+        "gslides",
+        "gmail",
+        "gcalendar",
+        "gsearch",
+        "gtasks",
+        "gcontacts",
+        "skills"
+      ],
+      "connector": "google-drive/gmail/google-calendar",
+      "route": "지정한 Google 자료 읽기·정리"
+    },
+    {
+      "id": "firecrawl",
+      "repository": "firecrawl/firecrawl",
+      "license": "AGPL-3.0; some SDKs MIT",
+      "sparse": [
+        "apps/api",
+        "apps/playwright-service-ts",
+        "apps/nuq-postgres",
+        "packages",
+        "skills"
+      ],
+      "connector": "firecrawl",
+      "route": "공개 URL 단일 페이지 추출"
+    },
+    {
+      "id": "context7",
+      "repository": "upstash/context7",
+      "license": "MIT",
+      "sparse": [
+        "packages",
+        "skills",
+        ".agents/plugins",
+        "docs"
+      ],
+      "connector": "context7",
+      "route": "개발 문서의 필요한 구간 조회"
+    },
+    {
+      "id": "notion",
+      "repository": "makenotion/notion-mcp-server",
+      "license": "MIT",
+      "sparse": [
+        "src",
+        "scripts",
+        "docs"
+      ],
+      "connector": "notion",
+      "route": "지정한 Notion 자료 조회·기록",
+      "caveat": "Public local server is no longer actively maintained; use connected hosted Notion by default."
+    }
+  ],
+  "stock": {
+    "root": "../../apps/stock-research",
+    "skill": "../../skills/research/stock-research/SKILL.md",
+    "github_repository": "Lunalumen/stella",
+    "github_skill": "skills/research/stock-research/SKILL.md",
+    "upstreams": [
+      "anthropics/financial-services",
+      "obra/superpowers"
+    ],
+    "markets": [
+      "KR",
+      "US"
+    ],
+    "orders": false,
+    "paid_model_api": false
+  }
+}

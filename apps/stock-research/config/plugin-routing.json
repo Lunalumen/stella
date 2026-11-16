@@ -1,0 +1,47 @@
+{
+  "schema_version": 1,
+  "checked_on": "2026-10-30",
+  "scope": "current Codex chat; not the standalone workroom browser",
+  "default_route": [
+    "existing_cache",
+    "official_source_existing_tools",
+    "local_pdf_reader",
+    "current_chat_analysis",
+    "validated_local_save"
+  ],
+  "optional_plugins": [
+    {
+      "name": "Firecrawl",
+      "plugin_id": "plugin_asdk_app_6a314a73f8ac819195b0d55e36b9c609",
+      "confirmed_state": "installed_and_enabled; live tools available; public Samsung HTML scrape and local import verified",
+      "state_is_live": false,
+      "use_only_if": [
+        "connection confirmed in current session",
+        "official public webpage unreadable by existing tools",
+        "free allowance confirmed sufficient"
+      ],
+      "allowed_work": [
+        "one-page public IR HTML extraction"
+      ],
+      "excluded_work": [
+        "paid plans or credit purchase",
+        "autonomous agent",
+        "scheduled monitoring",
+        "multi-page crawl",
+        "private file upload",
+        "PDF upload",
+        "brokerage or order actions"
+      ],
+      "after_extraction": "Review original URL, date and document scope; save reviewed text through existing run.ps1 import. Do not treat extracted tables as verified numbers.",
+      "free_exhausted_route": "stop plugin use; use existing official-source tools and local files",
+      "pricing_source": "https://www.firecrawl.dev/pricing"
+    }
+  ],
+  "reuse": {
+    "pdf": "stock_agent.pdf_sources; local only",
+    "chart": "existing TradingView widget; no AI data feed",
+    "analysis": "existing stock-research skill; no separate model API"
+  },
+  "automatic_plugin_api_calls": false,
+  "note": "This is routing policy, not a plugin installer or a claim of connection. Reconfirm actual tool availability before use."
+}

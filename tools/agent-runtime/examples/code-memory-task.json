@@ -1,0 +1,7 @@
+{
+  "goal": "myeongwol_codebase_memory의 search_graph 도구로 myeongwol-runtime 프로젝트의 executeTask 함수를 찾아 파일과 행 위치를 한 문장으로 알려줘. 필요하면 함수 목록에서 정확한 이름을 확인해. 이 점검에서는 셸 명령, 스킬 파일 읽기, 코드 변경을 하지 마.",
+  "agents": ["major"],
+  "codeTools": "codebase-memory",
+  "context": "MCP 연결 확인용. 기존 강의자료는 대상 아님.",
+  "sources": {}
+}

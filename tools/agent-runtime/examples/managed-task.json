@@ -1,0 +1,6 @@
+{
+  "goal": "알고리즘 담당의 역할과 필요한 자료 요청 항목을 짧게 설명해줘. 실제 강의자료는 읽지 말고 문제나 정답도 만들지 마.",
+  "agents": ["algorithms", "java", "windows", "history20", "chemistry", "aesthetics", "china"],
+  "context": "명월이 필요한 담당 한 명만 선택하는 실행 점검. 자료 내용 요약은 요청하지 않음.",
+  "sources": {}
+}

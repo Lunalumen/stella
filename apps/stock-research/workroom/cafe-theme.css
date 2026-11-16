@@ -1,0 +1,53 @@
+/* Warm, spacious cafe meeting room. Scene positions still follow app.js. */
+:root{--bg:#f3ece3;--panel:#fffaf3;--line:#dfcfbc;--muted:#806b58;--text:#3f3026;--mint:#855c38;--orange:#b8794b;--blue:#758b92;--purple:#9e8391}
+body{background:radial-gradient(ellipse at top,#fffaf1 0,#f3ece3 65%,#eadecf 100%)}
+.app{max-width:1880px;padding:0 40px}
+header{border-color:var(--line)}
+.intro h1,.watch-head h2,.team-row,.brand{color:var(--text)}
+.moon,.eyebrow,.agent-detail .eyebrow{color:#855c38}
+.intro p,.demo-note,.local,.watch-head p,.watch-note{color:var(--muted)}
+.badge,.lock-button{background:#ede0cf;border-color:#cfb697;color:#775332}
+.request{background:#fffaf4;border-color:#d8bfa3;box-shadow:0 8px 28px #754a2110}
+.request input{color:var(--text)}
+.primary{background:#835c3c;color:#fff8ed}
+.workspace{grid-template-columns:minmax(0,1fr) 290px;gap:22px}
+.office-panel,.team-panel,.feed-panel,.market-panel,.watch-panel,.bottom-strip{background:var(--panel);border-color:var(--line);box-shadow:0 8px 30px #6640210b}
+.office{height:760px;background:#ddc4a1 linear-gradient(135deg, #102334, #33514b) center center/cover no-repeat}
+.office:after{inset:0;border:0;border-radius:0;background:linear-gradient(180deg,transparent 75%,#4b301c24);z-index:-1}
+.floor-label{top:22px;left:24px;color:#5e412b;background:#fff5e4e8;padding:12px 15px;border:1px solid #d4b28b;border-radius:5px;font-size:10px;letter-spacing:2px}
+.routes{opacity:.18}
+.routes path{stroke:#825a36}
+.routes #active-route{stroke:#795031}
+.cafe-window,.cafe-counter,.plant,.lounge{display:none}
+.station{width:170px}
+.desk{background:#b68a5e;border-color:#815a38;border-bottom-color:#795230;box-shadow:0 9px 0 #714d3029;width:142px}
+.monitor{background:#eae2ce;border-color:#6e6250;color:#6c593e;box-shadow:0 3px 0 #b5a087}
+.desk-object{color:#fff0d7}
+.station h2{display:table;margin:0 auto 3px;padding:4px 12px;background:#fff8ecef;border-radius:5px;color:#4a3322}
+.station p{display:table;margin:auto;padding:3px 8px;border-radius:4px;background:#fff8e8e8;color:#725437}
+.station-number{color:#fff3db}
+.station-state{background:#fffaf1f2;border-color:#c6a581;color:#735331}
+.station.active .station-state{background:#805a39;color:#fff7e8;border-color:#fff1d9}
+.station.active .desk{border-color:#fff0ce}
+.cafe-table{width:170px;height:74px;top:57%;border:5px solid #795031;border-bottom-width:9px;border-radius:38%;background:linear-gradient(100deg,#bd8e5d,#d3aa78,#b98756);box-shadow:0 14px 18px #52351c35;line-height:54px;font-size:18px}
+.cafe-table span{margin:0 20px;color:#a7735b}
+.scene-status{bottom:12px;left:18px;right:18px;background:#fff8edeb;border:1px solid #d3b694;padding:8px 12px;border-radius:5px;color:#65462d}
+.agent-name{background:#fff9edfa;color:#4b3526;border-color:#c6a784;box-shadow:0 2px 7px #5f3f2118}
+.agent.selected .agent-name{color:#714721;border-color:#956b42}
+.team-row:hover,.team-row.selected{background:#f2e5d4;border-color:#ddc7ad}
+.team-row .portrait{color:#64482d}
+.agent-detail p,.event{color:#786049}
+.event{border-color:#d7bfa1}.event small{color:#947b63}
+.controls button,.market-panel button,.market-panel select,.watch-head button,.watch-card-header button{background:#f3e8da;border-color:#d9c3a8;color:#715337}
+.symbol-tabs button[aria-pressed=true]{background:#e8d6bd;border-color:#b38b5d;color:#644021}
+.watch-card{background:#fffaf4;border-color:#e1d2bf}.watch-card-header,.watch-kr{color:#634a34}
+.watch-kr p,.market-meta,.market-bottom p,.market-caption{color:var(--muted)}
+.watch-kr a,.market-meta span:first-child,.market-bottom a,.indicator-explain a,.bottom-strip button{color:#82552c}
+.indicator-bar,.indicator-help summary{color:#7c5b3d}.indicator-explain b{color:#62452c}
+.pipeline .progress-track{background:#e9dbc7}.progress-track #progress{background:#a47749}.steps .done{color:#855a30}
+dialog{background:#fffaf3;color:var(--text);border-color:var(--line)}
+dialog .report-notice{background:#efe3d1;color:#73583b}dialog .report-grid p{color:#7e6750}dialog .report-grid b{color:#855c38}
+@media(min-width:1600px){.office{height:820px}}
+@media(max-width:1100px){.workspace{grid-template-columns:1fr}.sidebar{display:grid;grid-template-columns:1fr 1fr;gap:18px}.office{height:720px}.feed{height:230px}}
+@media(max-width:800px){.app{padding:0 16px}.office{height:650px}.station{width:135px}.desk{width:110px}}
+@media(max-width:480px){.office{height:610px;background-size:auto 100%}.sidebar{grid-template-columns:1fr}.station{width:120px}.desk{width:96px}.cafe-table{width:100px;height:58px;line-height:39px;font-size:14px}.cafe-table span{margin:0 8px}.floor-label{font-size:8px;top:15px;left:12px;padding:8px}.floor-label span{font-size:5px}.scene-status{font-size:8px}.station p{font-size:8px}}

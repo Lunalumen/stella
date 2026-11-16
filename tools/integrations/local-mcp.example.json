@@ -1,0 +1,45 @@
+{
+  "note": "Optional local MCP configuration only. Not registered globally; existing authenticated plugins remain active. Each local service needs its own authentication.",
+  "mcpServers": {
+    "github": {
+      "command": "python",
+      "args": [
+        "-X",
+        "utf8",
+        "<repo>/tools/integrations/local-server.py",
+        "github"
+      ]
+    },
+    "workspace": {
+      "command": "python",
+      "args": [
+        "-X",
+        "utf8",
+        "<repo>/tools/integrations/local-server.py",
+        "workspace"
+      ]
+    },
+    "context7": {
+      "command": "python",
+      "args": [
+        "-X",
+        "utf8",
+        "<repo>/tools/integrations/local-server.py",
+        "context7"
+      ]
+    },
+    "notion": {
+      "command": "python",
+      "args": [
+        "-X",
+        "utf8",
+        "<repo>/tools/integrations/local-server.py",
+        "notion"
+      ]
+    }
+  },
+  "firecrawl": {
+    "mode": "source-prepared; active hosted connector",
+    "self_host_prerequisite": "Docker service stack plus release-specific configuration"
+  }
+}

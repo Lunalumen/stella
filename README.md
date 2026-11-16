@@ -1,45 +1,36 @@
 # Stella
 
-자료 이해·요약·학습·리서치를 위한 AI 스킬 25개를 목적별로 모았습니다.
+Reusable AI skills and source-code tools for local study, document reuse, memory, and research.
 
-## 분야별로 찾기
+Maintained by [Lunalumen](https://github.com/Lunalumen). Documentation entry points are in English; existing skills, interfaces, and examples include Korean. This repository contains source code, not a hosted service or a copy of the maintainer's private data.
 
-| 분야 | 포함 내용 | 스킬 수 |
-|---|---|---:|
-| [프로젝트 관리](skills/management/README.md) | 프로젝트 상태 관리와 채팅 간 작업 전달에 사용합니다. | 3 |
-| [자료 읽기·재사용](skills/sources/README.md) | 자료를 읽고, 필요한 구간을 찾고, 저장본을 재사용할 때 선택합니다. | 10 |
-| [강의 요약](skills/summaries/README.md) | 강의 자료와 필기를 과목과 자료 형태에 맞춰 정리합니다. | 3 |
-| [학습·복습](skills/study/README.md) | 실제 문제 풀이, 답안 피드백, 계획과 오답 복습에 사용합니다. | 6 |
-| [리서치·보안](skills/research/README.md) | 기업 조사나 보안 검토가 요청됐을 때만 선택합니다. | 2 |
+## Programs and technologies
 
-## 폴더 구조
+| Component | Purpose | Entry point |
+|---|---|---|
+| Study Room | Local question bank, grading helpers, spaced review, source library, PDF/image review | [apps/study-room](apps/study-room/README.md) |
+| Korea/US Stock Research | Official-source retrieval, document imports, caching, bounded research workflows | [apps/stock-research](apps/stock-research/README.md) |
+| Stock Workroom | Local animated workflow demonstration and optional market chart | [workroom](apps/stock-research/workroom/README.md) |
+| Agent Runtime | Explicit Codex SDK task planning, selected roles, bounded execution and usage records | [tools/agent-runtime](tools/agent-runtime/README.md) |
+| CLI Bridges | Optional explicit requests to separately installed Claude/Codex CLIs | [tools/claude-bridge](tools/claude-bridge/README.md), [tools/codex-bridge](tools/codex-bridge/README.md) |
+| Integration Router | Select the relevant GitHub, Workspace, Firecrawl, Context7, Notion or stock branch | [tools/integrations](tools/integrations/README.md) |
+| Stella Memory | Project-scoped local SQLite memory and experimental management UI | [memory skill](skills/management/stella-memory/SKILL.md) |
+| Skills | Document reading, cache/retrieval, concise prompts, token audit, study, research, Java packaging | [skill catalog](skills/README.md) |
 
-```text
-skills/
-├─ management/  프로젝트 관리·채팅 전달
-├─ sources/     자료 읽기·검색·저장본 재사용
-├─ summaries/   강의 요약·대본 정리
-├─ study/       문제 풀이·계획·오답 복습
-└─ research/    기업 리서치·보안 검토
-```
+## Skills and provenance
 
-각 스킬 폴더의 SKILL.md가 진입점입니다. 필요한 references/·scripts/·라이선스는 그 스킬과 함께 보관합니다. 오답 복습 도우미는 study/study-spaced-review/references/study-engine/에 있습니다.
+The repository contains 26 skill entry points: 4 management, 10 source-reading/reuse, 3 summary, 6 study/review, 2 research/security, and 1 development/Java-packaging skill. Keep each `SKILL.md` with its referenced scripts, templates and license files. Read only the skill and reference sections needed for the task; copying files does not install a skill or connect an external service.
 
-## 사용 기준
+The original skill reorganization came from `Lunalumen/-` at commit `2b524f08161c16c399d58742c361301110fec0c3`; imported-source licenses and [upstream-lock.json](upstream-lock.json) are preserved. `upstream-SKILL.md` files are provenance snapshots, not execution entry points. See [concise prompt preparation](skills/sources/stella-concise-prompt/SKILL.md) and [token audit](skills/management/stella-token-audit/SKILL.md) for bounded text and usage comparisons.
 
-- 목적에 맞는 스킬부터 읽고 필요한 보조 자료만 확인합니다.
-- 저장소 안에서 참조할 때는 이 폴더 구조를 유지합니다. 다른 위치에 개별 설치할 때는 공통 스킬 의존성과 상대 경로를 함께 조정해야 합니다.
-- 이번 정리는 GitHub 보관 구조 변경입니다. 로컬 설치나 선택형 외부 서비스 연결을 수행하지 않습니다.
-- 개인 문서·공부 기록·계정 정보·캐시·로그는 포함하지 않습니다. 실제 토큰 절감률은 측정 전까지 미확인입니다.
+## Start here
 
-## 출처와 라이선스
+Clone or download the repository and follow the selected component's README. Python components target Python 3.12 or newer. The two private desktop web interfaces use Windows account-bound access; the study-room launcher uses Windows PowerShell. The agent runtime needs Node.js and its pinned npm dependency for model execution. Optional tools have their own requirements.
 
-Lunalumen/-의 커밋 2b524f08161c16c399d58742c361301110fec0c3에서 가져온 스킬을 분야별로 재배치했습니다. 외부 유래 스킬의 라이선스와 [upstream-lock.json](upstream-lock.json)을 보존합니다. upstream-SKILL.md는 원본 기록이며 실행 진입점이 아닙니다. 기존 원본 저장소는 수정하지 않습니다.
+Local storage, cache lookup, the synthetic study demo, and mock research tests do not require model API calls. AI CLI/SDK execution consumes the configured account's usage and may incur charges. Hosted connectors and data providers have separate account requirements and limits. The Study Room paid API branch is disabled unless the user explicitly enables it. No installation, sign-in, paid service, or AI call runs just by downloading this repository.
 
-## Stella 자료 검색·프롬프트 정리
+## Privacy, provenance and readiness
 
-[자료 읽기·재사용](skills/sources/README.md)에 Stella 전용 스킬 3개를 추가했습니다. 중복을 줄이면서 목표·조건·숫자·출처를 보존합니다. 외부 런타임은 미설치·미검증이며 실제 토큰 절감률은 미측정입니다.
+Keep actual databases, source documents, chat history, credentials, exports, runtime installations and logs outside version control. See [SECURITY.md](SECURITY.md), [third-party notices](THIRD_PARTY_NOTICES.md), and [program export verification](docs/PROGRAM_EXPORT_2026-11-16.md).
 
-짧은 프롬프트 작성: [stella-concise-prompt](skills/sources/stella-concise-prompt/SKILL.md).
-
-토큰 절감 평가: [stella-token-audit](skills/management/stella-token-audit/SKILL.md). 제공 텍스트와 전체 작업 사용량 로그를 구분하며 실제 사용량 근거 없이는 전체 절감을 판정하지 않습니다.
+The source export received syntax, configuration and private-reference checks. It has not received a fresh end-to-end runtime test in the publication environment. Treat the programs as experimental; source preservation, successful syntax checks, live service connection, and measured token savings are different claims. Token/cost savings for the whole task have not been measured.

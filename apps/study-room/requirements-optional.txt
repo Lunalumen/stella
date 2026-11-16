@@ -1,0 +1,4 @@
+# Optional document features only; install explicitly in your own environment.
+pypdf
+pdfplumber
+Pillow

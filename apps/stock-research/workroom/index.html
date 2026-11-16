@@ -1,0 +1,53 @@
+<!doctype html>
+<html lang="ko">
+<head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>MOON LAB · 리서치 작업실</title><link rel="stylesheet" href="style.css"><link rel="stylesheet" href="cafe-theme.css"></head>
+<body>
+<div class="app">
+ <header><a class="brand" href="./"><span class="moon">◔</span><span>MOON LAB<small>작은 질문에서, 단단한 근거로.</small></span></a><div class="header-right"><span class="local"><i></i> PRIVATE · 이 PC 전용</span><button class="badge lock-button" id="lock-workroom" type="button">잠그기</button><span class="badge">INTERACTIVE DEMO</span></div></header>
+ <main>
+  <section class="intro"><div><div class="eyebrow">YOUR RESEARCH, IN MOTION</div><h1>리서치가 움직이는 곳<span>.</span></h1><p>자료를 찾고, 생각을 나누고, 반대 근거까지 확인하는 작은 작업실.</p></div><div class="clock"><span id="clock">00:00:00</span><small>SEOUL · RESEARCH OFFICE</small></div></section>
+  <form id="request-form" class="request"><span class="prompt-icon">↗</span><label class="sr-only" for="question">리서치 질문</label><input id="question" maxlength="160" placeholder="예: 삼성전자 기업을 분석해줘" required><button class="primary" id="start" type="submit">작업 시작 <span>↗</span></button></form>
+  <div class="demo-note"><span>◈</span> 캐릭터의 작업은 데모예요. 아래 차트는 TradingView 제공 데이터이며 AI가 자동으로 읽거나 분석하지 않아요.</div>
+  <section class="scope-panel" aria-label="뉴스 조사 범위"><div><span class="eyebrow">RESEARCH SCOPE</span><h2>넓게 보고, 관련된 것부터 살펴요</h2><p>세온이 시장과 정책의 변화를 살피는 역할을 맡아요.</p></div><div class="scope-items"><span><b>01 시장·사회</b><small>금리 · 경기 · 정부 정책 · 환율</small></span><span><b>02 산업·경쟁사</b><small>업황 · 수요 · 경쟁 기업</small></span><span><b>03 기업</b><small>공시 · 실적 · 제품</small></span></div><p class="scope-note">조사 범위 안내예요. 이 화면은 뉴스를 자동으로 수집하거나 최신 기사 목록을 표시하지 않아요.</p></section>
+  <section class="watch-panel" aria-labelledby="watch-title"><div class="watch-head"><div><div class="eyebrow">YOUR WATCHLIST</div><h2 id="watch-title">관심 종목 한눈에 보기</h2><p>가격과 변화를 카드로 살펴봐요. 종목별 시세는 지연될 수 있어요.</p></div><button id="watch-toggle" type="button" aria-expanded="true">상황판 접기</button></div><div id="watch-body"><div id="watch-cards" class="watch-grid"></div><p class="watch-note">TradingView 제공 · 카드와 상세 차트의 시세 출처·기준 시각을 확인하세요. 카드 선택은 아래 상세 차트 전환이며 AI 분석은 실행하지 않아요. 삼성전자는 무료 위젯 제공 제한으로 원본 링크를 안내해요.</p></div></section>
+  <section class="market-panel" aria-labelledby="market-title">
+   <div class="market-heading"><div><div class="eyebrow">MARKET WINDOW</div><h2 id="market-title">가격의 흐름도 함께 보기<span>일봉 · 중장기 흐름 중심</span></h2></div><button id="chart-toggle" type="button" aria-expanded="true">차트 닫기</button></div>
+   <div class="market-body" id="market-body">
+    <div class="market-toolbar"><div class="symbol-tabs" role="group" aria-label="관심 종목"><button data-symbol="NASDAQ:GOOGL" type="button" aria-pressed="true">구글 <small>GOOGL</small></button><button data-symbol="NASDAQ:INTC" type="button" aria-pressed="false">인텔 <small>INTC</small></button><button data-symbol="KRX:005930" type="button" aria-pressed="false">삼성전자 <small>005930</small></button><button data-symbol="NASDAQ:AAPL" type="button" aria-pressed="false">애플 <small>AAPL</small></button><button data-symbol="NASDAQ:TSLA" type="button" aria-pressed="false">테슬라 <small>TSLA</small></button><button data-symbol="AMEX:SPY" type="button" aria-pressed="false">미국 시장 <small>SPY ETF</small></button></div><div class="market-options"><label for="chart-interval" class="sr-only">차트 봉 기간</label><select id="chart-interval"><option value="D">일</option><option value="W">주</option></select><button id="chart-reload" type="button" aria-label="차트 다시 불러오기">↻ 다시 불러오기</button></div></div>
+    <div class="indicator-bar" role="group" aria-label="차트 지표 설정"><span>기본 지표</span><label><input type="checkbox" data-indicator="ma" checked> 이동평균 20·60·120</label><label><input type="checkbox" data-indicator="volume" checked> 거래량</label><label><input type="checkbox" data-indicator="rsi" checked> RSI 14</label><label><input type="checkbox" data-indicator="macd"> MACD 12·26·9</label></div>
+    <details class="indicator-help"><summary>지표는 어떻게 읽나요?</summary><div class="indicator-explain"><p><b>이동평균선 20·60·120</b>은 최근 20·60·120개 봉의 종가 평균이에요. 짧은 흐름과 긴 흐름을 비교하는 기본 조합으로 골랐어요. 일봉에서는 거래일, 주봉에서는 주 단위예요.</p><p><b>거래량</b>은 얼마나 많이 거래됐는지 보여줘요. 가격 변화에 거래가 함께 늘었는지 살펴보세요.</p><p><b>RSI 14</b>는 최근 상승·하락의 강도를 0~100으로 나타내요. 흔히 70 이상은 과열, 30 이하는 침체 구간으로 보지만 그 상태가 오래 이어질 수 있어요.</p><p><b>MACD 12·26·9</b>는 두 이동평균의 차이로 추세 변화를 보는 보조 지표예요. 기본은 꺼두었고 필요할 때 추가할 수 있어요.</p><p>이 조합은 사용량 순위를 측정한 결과가 아닌 기본 관찰용 선택이에요. 지표만으로 매수·매도를 결정하지 마세요. 내부 표기는 공급자 영문 표기를 사용하며 D는 일, W는 주예요. 지표 변경 시 차트를 다시 불러오고, 새로 열면 기본 설정으로 시작해요.</p><p><a href="https://www.fidelity.com/learning-center/trading-investing/technical-analysis/technical-indicator-guide/RSI" target="_blank" rel="noopener noreferrer">RSI 해설 · Fidelity ↗</a></p></div></details>
+    <div class="market-meta"><span id="market-symbol">NASDAQ:GOOGL · USD</span><span>실시간 보장 없음 · 가격 기준 시각·통화·지연 여부는 차트 내부 표시 확인</span></div>
+    <div id="chart-mount" class="chart-mount"></div>
+    <div class="market-bottom"><p id="chart-status" role="status">차트를 불러오는 중이에요.</p><a id="chart-external" href="https://www.tradingview.com/chart/?symbol=NASDAQ%3AGOOGL" target="_blank" rel="noopener noreferrer">TradingView에서 열기 ↗</a></div>
+    <p class="market-caption">무료 차트 · API 키 불필요 · 자동 재로딩·AI 자동 호출 없음. 선택한 종목은 TradingView에 전달돼요. 종목·거래소별 제공 범위가 달라 차트가 표시되지 않을 수 있어요. 위젯 자체의 시세 갱신은 제공업체가 관리해요.</p>
+   </div>
+  </section>
+  <section id="research-results" class="scope-panel result-panel" aria-labelledby="results-title">
+   <div><span class="eyebrow">RESEARCH RESULTS · 확인한 자료</span><h2 id="results-title">분석 결과</h2><p>캐릭터 데모와 별도로 읽을 수 있는 저장된 리서치예요.</p></div>
+   <div class="result-toolbar"><label for="result-symbol">저장된 결과</label><select id="result-symbol"><option value="SCHD">SCHD · 미국 배당주 ETF</option></select><button id="show-result" type="button">결과 보기</button><button id="hide-result-charts" type="button">차트 접기</button></div>
+   <p id="result-request-status" role="status"></p><div id="result-content"></div>
+  </section>
+  <div class="workspace">
+   <section class="office-panel" aria-label="움직이는 에이전트 작업실">
+    <div class="panel-top"><div><span class="live-dot"></span><b>리서치 플로어</b><span class="subtle">01 / MAIN OFFICE</span></div><div class="controls"><button id="pause" type="button">Ⅱ 일시정지</button><button id="speed" type="button" aria-label="재생 속도 변경">1×</button><button id="reset" type="button" title="초기화" aria-label="초기화">↺</button></div></div>
+    <div id="office" class="office">
+     <div class="floor-label">MOON LAB <span>RESEARCH DEPARTMENT</span></div>
+     <svg class="routes" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"><path d="M24 28 L50 28 L50 72 L76 72 M76 28 L50 28 M24 72 L50 72"/><path id="active-route" d="M24 28 L50 28 L76 28"/></svg>
+     <div class="station source" style="--x:24%;--y:28%"><span class="station-number">01</span><div class="desk"><span class="monitor">▤</span><span class="desk-object">▥</span></div><h2>자료실</h2><p>공시 · 시장 · 정책</p><span class="station-state" id="station-0">대기 중</span></div>
+     <div class="station analysis" style="--x:76%;--y:28%"><span class="station-number">02</span><div class="desk"><span class="monitor">⌁</span><span class="desk-object">▰</span></div><h2>분석 데스크</h2><p>사업 · 재무 · 성장</p><span class="station-state" id="station-1">대기 중</span></div>
+     <div class="station review" style="--x:24%;--y:72%"><span class="station-number">03</span><div class="desk"><span class="monitor">✓</span><span class="desk-object">▱</span></div><h2>검토 데스크</h2><p>국가 상황 · 위험 · 반론</p><span class="station-state" id="station-2">대기 중</span></div>
+     <div class="station report" style="--x:76%;--y:72%"><span class="station-number">04</span><div class="desk"><span class="monitor">≡</span><span class="desk-object">▤</span></div><h2>보고서함</h2><p>상승 · 하락 조건</p><span class="station-state" id="station-3">대기 중</span></div>
+     <div class="cafe-window" aria-hidden="true"><span>☀</span><span>☁</span><span>☁</span></div><div class="cafe-counter" aria-hidden="true"><span>☕</span><b>MOON CAFÉ</b><small>coffee & research</small><i>☕　🍵　☕</i></div><div class="lounge-sofa" aria-hidden="true"><span></span><span></span><span></span></div><div class="cafe-table" aria-hidden="true">☕<span>✿</span>☕</div><div class="lounge"><span>☕</span><small>COFFEE BREAK</small></div><div class="plant p1">✳</div><div class="plant p2">✳</div>
+     <div id="agents"></div><div id="handoff" class="handoff" hidden>▤ 자료 전달</div>
+     <div class="scene-status"><span id="scene-status">작업 준비 중</span><span id="elapsed">00:00</span></div>
+    </div>
+    <div class="pipeline"><div class="pipeline-heading"><span id="phase-label">작업 준비</span><span id="progress-label">0 / 4</span></div><div class="progress-track"><div id="progress"></div></div><div class="steps"><span>01 자료 확인</span><span>02 분석</span><span>03 반론 검토</span><span>04 정리</span></div></div>
+   </section>
+   <aside class="sidebar"><section class="team-panel"><div class="section-head"><h2>오늘의 팀</h2><span>8 MEMBERS</span></div><div id="team"></div><div class="agent-detail" id="agent-detail"><span class="eyebrow">AGENT NOTE</span><p>팀원이나 캐릭터를 눌러 역할과 현재 작업을 확인하세요.</p></div></section><section class="feed-panel"><div class="section-head"><h2>작업 소식</h2><span id="event-count">0 EVENTS</span></div><div id="feed" class="feed" role="log" aria-live="polite" aria-relevant="additions"></div></section></aside>
+  </div>
+  <section class="bottom-strip"><div><span class="mini-icon">↳</span><span>한 번 찾은 자료, 함께 사용<small>반복 수집을 줄이는 작업 흐름을 표현해요.</small></span></div><div><span class="mini-icon">◇</span><span>반대 근거도 함께 확인<small>동의보다 근거를 확인하는 팀.</small></span></div><button id="open-report" type="button" disabled>완료 후 예시 보고서 보기 ↗</button></section>
+  <footer><span>MOON LAB / PERSONAL RESEARCH STUDIO</span><span>연출된 작업 흐름 · 유료 API 연결 없음 · 매매 기능 없음</span></footer>
+ </main>
+</div>
+<dialog id="report-dialog"><div class="dialog-head"><span class="eyebrow">WORKFLOW PREVIEW</span><button id="close-report" aria-label="닫기">✕</button></div><h2>작업 흐름이 완료됐어요.</h2><p id="report-question"></p><div class="report-notice">아래는 결과 형식의 예시예요. 입력한 기업을 실제로 조사한 투자 보고서가 아닙니다.</div><div class="report-grid"><div><b>01 / 자료 확인</b><p>종목과 함께 시장·정책, 업종·경쟁사, 기업 공시를 확인합니다.</p></div><div><b>02 / 분석</b><p>매출·이익·현금흐름을 구분하고 변화 원인을 살펴봅니다.</p></div><div><b>03 / 반론 검토</b><p>정부 발표와 시행 여부, 기업에 미칠 영향과 반대 근거를 확인합니다.</p></div><div><b>04 / 결과 정리</b><p>상승·하락 조건을 근거와 함께 정리하고 출처와 기준일을 표시합니다.</p></div></div><p class="subtle">차트는 TradingView에 연결되며 AI 모델 호출은 발생하지 않습니다. 캐릭터 작업과 보고서는 데모이며 현재 대화의 사용량과는 별개입니다.</p></dialog>
+<script src="app.js"></script><script src="market.js"></script><script src="lock.js"></script></body></html>

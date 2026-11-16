@@ -34,3 +34,17 @@ logs/
 credentials*.json
 *token*.local.json
 local-mcp.json
+
+# Program installations, caches and account-bound local state
+runtime/
+upstream/
+node_modules/
+.pnpm-store/
+*.dpapi
+launch-ticket.json
+workroom-access.json
+*.sqlite3-wal
+*.sqlite3-shm
+**/config/local.json
+*.p12
+*.pfx
