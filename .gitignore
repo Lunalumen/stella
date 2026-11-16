@@ -17,3 +17,20 @@ state/
 cache/
 *.jsonl
 *.pptx
+
+# Private runtime and authentication data
+.env.*
+!.env.example
+!.env.sample
+.bridge/
+private/
+logs/
+*.log
+*.db-*
+*.sqlite3
+*.sqlite3-*
+*.pem
+*.key
+credentials*.json
+*token*.local.json
+local-mcp.json

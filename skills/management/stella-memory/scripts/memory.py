@@ -20,6 +20,9 @@ NAME_RE = re.compile(r'^[a-z0-9][a-z0-9._-]{0,63}$')
 KINDS = ('preference', 'constraint', 'decision', 'open_question')
 STATUSES = ('active', 'superseded', 'conflict', 'retired')
 TEXT_MAX = 2000
+SOURCE_NOTE_MAX = 500
+RESPONSE_MAX = 4000  # whole search response, compact JSON characters
+RESPONSE_MIN = 1200
 SCHEMA = '''
 CREATE TABLE IF NOT EXISTS memories(
   memory_id TEXT PRIMARY KEY, project TEXT NOT NULL, key TEXT NOT NULL, key_provisional INTEGER NOT NULL DEFAULT 0,
@@ -72,6 +75,35 @@ def check_text(text):
     return normalize(text)
 
 
+def check_source_note(note):
+    """Same limit on add/update/import. Over-limit notes are rejected, never silently cut."""
+    if note is None:
+        return ''
+    if not isinstance(note, str):
+        raise ValueError('source_note must be a string')
+    if len(note) > SOURCE_NOTE_MAX:
+        raise ValueError(f'source_note is {len(note)} characters; limit is {SOURCE_NOTE_MAX} (not truncated, shorten it)')
+    return note
+
+
+def list_projects(path):
+    """Read-only list of project names present in a DB file (for the local UI). Missing file -> []."""
+    path = Path(path)
+    if not path.is_file():
+        return []
+    db = sqlite3.connect(path.resolve().as_uri() + '?mode=ro', uri=True, timeout=5.0)
+    try:
+        names = set()
+        for table in ('memories', 'conflicts', 'audit'):
+            try:
+                names.update(r[0] for r in db.execute(f'SELECT DISTINCT project FROM {table}'))
+            except sqlite3.OperationalError:
+                pass
+        return sorted(names)
+    finally:
+        db.close()
+
+
 def check_kind(kind):
     if kind not in KINDS:
         raise ValueError(f'kind must be one of {KINDS}')
@@ -94,6 +126,9 @@ class Store:
         self.db.executescript(SCHEMA)
 
     # --- helpers -------------------------------------------------------
+    def close(self):
+        self.db.close()
+
     def _begin(self):
         self.db.execute('BEGIN IMMEDIATE')
 
@@ -151,6 +186,7 @@ class Store:
         text = check_text(text)
         check_kind(kind)
         check_name(requested_by, 'requested_by')
+        source_note = check_source_note(source_note)
         h = content_hash(text)
         provisional = key is None
         mid = memory_id or str(uuid.uuid4())
@@ -192,20 +228,36 @@ class Store:
             result['status'] = 'conflict_candidate'
         return result
 
-    def add(self, *args, **kwargs):
+    def add(self, *args, dry_run=False, **kwargs):
+        """dry_run runs the real add logic and rolls back, so a preview shows exactly what saving would do."""
         self._begin()
         try:
             result = self._add_in_tx(*args, **kwargs)
+            if dry_run:
+                self.db.execute('ROLLBACK')
+                result['dry_run'] = True
+                if result['status'] in ('created', 'conflict_candidate'):
+                    result['note_dry_run'] = 'nothing saved; memory_id and conflict_id are assigned anew on the real save'
+                return result
             self.db.execute('COMMIT')
             return result
         except Exception:
             self.db.execute('ROLLBACK')
             raise
 
-    def search(self, query, limit=5, max_chars=1500, include_global=False):
+    def search(self, query, limit=5, max_chars=1500, include_global=False, offset=0, max_response_chars=RESPONSE_MAX):
+        """Keyword search with two budgets: max_chars for result text and max_response_chars for the whole
+        compact-JSON response (metadata included). Counts and conflict warnings are always kept; lists shrink
+        first and `next_offset` pages to the rest."""
         terms = list(dict.fromkeys(re.findall(r'[\w-]+', query)))
         if not terms:
             raise ValueError('Provide at least one search term')
+        if not isinstance(limit, int) or limit < 1:
+            raise ValueError('limit must be a positive integer')
+        if not isinstance(offset, int) or offset < 0:
+            raise ValueError('offset must be a non-negative integer')
+        if not isinstance(max_response_chars, int) or max_response_chars < RESPONSE_MIN:
+            raise ValueError(f'max_response_chars must be at least {RESPONSE_MIN}')
         patterns = [re.compile(study_pattern(t), re.IGNORECASE) for t in terms]
         projects = [self.project] + (['global'] if include_global and self.project != 'global' else [])
         rows = self.db.execute(f"SELECT m.*, r.text, r.created AS updated FROM memories m JOIN revisions r ON r.memory_id=m.memory_id "
@@ -217,40 +269,76 @@ class Store:
             matched = sum(c > 0 for c in counts)
             if matched:
                 hits.append((matched, min(sum(counts), 20), row))
-        hits.sort(key=lambda h: (-h[0], -h[1], h[2]['updated']))
-        selected, used, omitted = [], 0, []
-        for matched, score, row in hits:
+        hits.sort(key=lambda h: (-h[0], -h[1], h[2]['updated'], h[2]['memory_id']))
+        page = [h[2] for h in hits[offset:]]
+        # Results are a contiguous run from `offset`, so next_offset always continues without gaps.
+        selected, used = [], 0
+        matched_of = {h[2]['memory_id']: h[0] for h in hits}
+        for row in page:
             if len(selected) >= limit:
-                omitted.append(row['memory_id'])
-                continue
-            text = row['text']
-            truncated = False
+                break
+            text, truncated = row['text'], False
             if used + len(text) > max_chars:
                 room = max_chars - used
                 if selected or room <= 0:
-                    omitted.append(row['memory_id'])
-                    continue
+                    break
                 text, truncated = text[:room], True
             used += len(text)
             conflict = self._conflict_of(row['memory_id'])
             selected.append({'memory_id': row['memory_id'], 'project': row['project'], 'key': row['key'], 'kind': row['kind'],
                              'status': row['status'], 'rev': row['current_rev'], 'text': text, 'truncated': truncated,
-                             'matched_terms': matched, 'updated': row['updated'],
-                             'conflict_id': conflict['conflict_id'] if conflict else None})
-        conflicts = {}
-        for matched, score, row in hits:
+                             'matched_terms': matched_of[row['memory_id']], 'updated': row['updated'], 'conflict_id': conflict['conflict_id'] if conflict else None})
+        groups = {}
+        for _, _, row in hits:
             c = self._conflict_of(row['memory_id'])
-            if c:
-                entry = conflicts.setdefault(c['conflict_id'], {'conflict_id': c['conflict_id'], 'key': c['key'], 'candidates': 0, 'shown': 0})
-                entry['candidates'] = self.db.execute('SELECT COUNT(*) FROM conflict_members WHERE conflict_id=?', (c['conflict_id'],)).fetchone()[0]
-                entry['shown'] += any(s['memory_id'] == row['memory_id'] for s in selected)
-        for entry in conflicts.values():
-            entry['omitted'] = entry['candidates'] - entry['shown']
-        return {'mode': 'keyword', 'scope': {'project': self.project, 'include_global': include_global},
-                'query_terms': terms, 'total_matched': len(hits), 'returned': len(selected), 'omitted_ids': omitted,
-                'partial': bool(omitted) or any(s['truncated'] for s in selected), 'chars_returned': used,
-                'budget': {'limit': limit, 'max_chars': max_chars}, 'conflicts': list(conflicts.values()), 'results': selected,
-                'note': 'absence from results is not proof the fact was never stored'}
+            if c and c['conflict_id'] not in groups:
+                members = {r[0] for r in self.db.execute('SELECT memory_id FROM conflict_members WHERE conflict_id=?', (c['conflict_id'],))}
+                groups[c['conflict_id']] = (c['key'], members)
+
+        def build(k, ids_cap, conf_cap, trim=None):
+            shown = selected[:k]
+            if trim is not None and shown:  # last resort: shorten the first result instead of returning nothing
+                shown[0] = dict(shown[0], text=shown[0]['text'][:trim], truncated=True)
+            shown_ids = {s['memory_id'] for s in shown}
+            rest = [r['memory_id'] for r in page[k:]]
+            conflicts = [{'conflict_id': cid, 'key': key, 'candidates': len(members), 'shown': len(members & shown_ids),
+                          'omitted': len(members - shown_ids)} for cid, (key, members) in groups.items()]
+            more = []
+            if rest:
+                more.append(f'{len(rest)} more after this page: repeat the search with offset={offset + k}')
+            if ids_cap < len(rest):
+                more.append('omitted_ids is shortened to fit the response budget; page with offset')
+            if conf_cap < len(conflicts):
+                more.append('conflicts list is shortened; conflict_count is complete; open the conflicts view or show --conflict')
+            out = {'mode': 'keyword', 'scope': {'project': self.project, 'include_global': include_global},
+                   'query_terms': terms, 'total_matched': len(hits), 'offset': offset, 'returned': k,
+                   'omitted_count': len(rest), 'omitted_ids': rest[:ids_cap], 'omitted_ids_complete': ids_cap >= len(rest),
+                   'partial': offset > 0 or bool(rest) or any(s['truncated'] for s in shown),
+                   'chars_returned': sum(len(s['text']) for s in shown),
+                   'budget': {'limit': limit, 'max_chars': max_chars, 'max_response_chars': max_response_chars},
+                   'conflict_count': len(conflicts), 'conflicts': conflicts[:conf_cap], 'conflicts_complete': conf_cap >= len(conflicts),
+                   'results': shown, 'next_offset': offset + k if rest else None, 'more': more,
+                   'note': 'keyword match only; absence from results is not proof the fact was never stored',
+                   'response_chars': 0}
+            for _ in range(3):  # the size field changes the size; let it settle
+                out['response_chars'] = len(json.dumps(out, ensure_ascii=False))
+            return out
+
+        k, ids_cap, conf_cap, trim = len(selected), len(page) - len(selected), len(groups), None
+        while True:
+            out = build(k, ids_cap, conf_cap, trim)
+            if out['response_chars'] <= max_response_chars:
+                return out
+            if ids_cap > 0:
+                ids_cap //= 2
+            elif k > 1:
+                k -= 1
+            elif conf_cap > 0:
+                conf_cap //= 2
+            elif k == 1 and (trim is None or trim > 0):
+                trim = len(selected[0]['text']) // 2 if trim is None else trim // 2
+            else:
+                raise ValueError(f'search response envelope alone exceeds max_response_chars={max_response_chars}; shorten the query')
 
     def show(self, memory_id=None, conflict_id=None, include_all=False):
         if conflict_id:
@@ -281,9 +369,15 @@ class Store:
         rows = self.db.execute(f'SELECT * FROM memories WHERE project=? {status_filter} ORDER BY key, created', (self.project,)).fetchall()
         return {'project': self.project, 'count': len(rows), 'memories': [self._record(r) for r in rows]}
 
-    def update(self, memory_id, expect_rev, text, kind=None, requested_by='user', source_note=''):
+    def open_conflicts(self):
+        ids = [r[0] for r in self.db.execute("SELECT conflict_id FROM conflicts WHERE project=? AND status='open' ORDER BY created",
+                                             (self.project,))]
+        return {'project': self.project, 'count': len(ids), 'conflicts': [self.show(conflict_id=c) for c in ids]}
+
+    def update(self, memory_id, expect_rev, text, kind=None, requested_by='user', source_note='', dry_run=False):
         text = check_text(text)
         check_name(requested_by, 'requested_by')
+        source_note = check_source_note(source_note)
         if kind:
             check_kind(kind)
         self._begin()
@@ -298,7 +392,9 @@ class Store:
                         'expected_rev': expect_rev, 'current_rev': m['current_rev'],
                         'note': 'another change landed first; re-read with show and decide'}
             h = content_hash(text)
-            if self._current(memory_id)['content_hash'] == h and not kind:
+            cur = self._current(memory_id)
+            # Same rule as add(): hash equality alone is not identity, so confirm the normalized text too.
+            if cur['content_hash'] == h and normalize(cur['text']) == text and not kind:
                 self.db.execute('COMMIT')
                 return {'status': 'unchanged', 'memory_id': memory_id, 'rev': expect_rev}
             new_rev, ts = expect_rev + 1, now()
@@ -311,6 +407,11 @@ class Store:
                 raise ValueError('concurrent modification detected')
             self.db.execute('UPDATE conflict_members SET rev=? WHERE memory_id=?', (new_rev, memory_id))
             self._audit('update', memory_id, m['key'], new_rev)
+            if dry_run:
+                previous = self.db.execute('SELECT text FROM revisions WHERE memory_id=? AND rev=?', (memory_id, expect_rev)).fetchone()[0]
+                self.db.execute('ROLLBACK')
+                return {'status': 'updated', 'dry_run': True, 'memory_id': memory_id, 'rev': new_rev,
+                        'previous_text': previous, 'text': text}
             self.db.execute('COMMIT')
             return {'status': 'updated', 'memory_id': memory_id, 'rev': new_rev}
         except Exception:
@@ -436,7 +537,7 @@ class Store:
                     raise ValueError(f"project {row.get('project')!r} does not match --project {self.project}")
                 item = {'text': check_text(row.get('text', '')), 'kind': check_kind(row.get('kind')),
                         'key': check_name(row['key'], 'key') if row.get('key') else None,
-                        'memory_id': row.get('memory_id'), 'source_note': str(row.get('source_note', ''))[:500]}
+                        'memory_id': row.get('memory_id'), 'source_note': check_source_note(row.get('source_note', ''))}
                 mid = item['memory_id']
                 if mid is not None:
                     if not isinstance(mid, str):
@@ -486,13 +587,14 @@ def main(argv=None):
     sub = p.add_subparsers(dest='cmd', required=True)
     a = sub.add_parser('add'); a.add_argument('text'); a.add_argument('--kind', required=True, choices=KINDS)
     a.add_argument('--key'); a.add_argument('--requested-by', default='user'); a.add_argument('--source-note', default='')
-    a.add_argument('--reactivate', action='store_true')
+    a.add_argument('--reactivate', action='store_true'); a.add_argument('--dry-run', action='store_true')
     s = sub.add_parser('search'); s.add_argument('query'); s.add_argument('--limit', type=int, default=5)
     s.add_argument('--max-chars', type=int, default=1500); s.add_argument('--include-global', action='store_true')
+    s.add_argument('--offset', type=int, default=0); s.add_argument('--max-response-chars', type=int, default=RESPONSE_MAX)
     sh = sub.add_parser('show'); sh.add_argument('--id'); sh.add_argument('--conflict'); sh.add_argument('--all', action='store_true')
     u = sub.add_parser('update'); u.add_argument('--id', required=True); u.add_argument('--expect-rev', type=int, required=True)
     u.add_argument('text'); u.add_argument('--kind', choices=KINDS); u.add_argument('--requested-by', default='user')
-    u.add_argument('--source-note', default='')
+    u.add_argument('--source-note', default=''); u.add_argument('--dry-run', action='store_true')
     r = sub.add_parser('resolve'); r.add_argument('--conflict', required=True); r.add_argument('--keep', required=True, help='memory_id[:rev]')
     r.add_argument('--resolved-by', default='user')
     rt = sub.add_parser('retire'); rt.add_argument('--id', required=True)
@@ -505,13 +607,16 @@ def main(argv=None):
     args = p.parse_args(argv)
     st = Store(args.db, args.project, args.actor)
     if args.cmd == 'add':
-        out = st.add(args.text, args.kind, key=args.key, requested_by=args.requested_by, source_note=args.source_note, reactivate=args.reactivate)
+        out = st.add(args.text, args.kind, key=args.key, requested_by=args.requested_by, source_note=args.source_note, reactivate=args.reactivate,
+                     dry_run=args.dry_run)
     elif args.cmd == 'search':
-        out = st.search(args.query, args.limit, args.max_chars, args.include_global)
+        out = st.search(args.query, args.limit, args.max_chars, args.include_global, args.offset, args.max_response_chars)
+        print(json.dumps(out, ensure_ascii=False))  # printed exactly as measured by response_chars
+        return
     elif args.cmd == 'show':
         out = st.show(args.id, args.conflict, args.all)
     elif args.cmd == 'update':
-        out = st.update(args.id, args.expect_rev, args.text, args.kind, args.requested_by, args.source_note)
+        out = st.update(args.id, args.expect_rev, args.text, args.kind, args.requested_by, args.source_note, args.dry_run)
     elif args.cmd == 'resolve':
         out = st.resolve(args.conflict, args.keep, args.resolved_by)
     elif args.cmd == 'retire':

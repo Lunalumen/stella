@@ -357,6 +357,119 @@ class Review2Regressions(Base):
         self.assertNotEqual(a['memory_id'], b['memory_id'])
         self.assertEqual((again['status'], again['memory_id']), ('unchanged', a['memory_id']))
 
+    def test_hash_collision_does_not_skip_update(self):
+        """validation-claude-3: update() also confirms the text after a hash match (synthetic forced hash)."""
+        original = mem.content_hash
+        mem.content_hash = lambda t: 'forced-same-hash'  # synthetic; not a real SHA-256 collision
+        try:
+            u = self.p1.add('U1', 'decision', key='u')
+            changed = self.p1.update(u['memory_id'], 1, 'U2 다른 내용')
+            same = self.p1.update(u['memory_id'], 2, 'U2 다른 내용')
+        finally:
+            mem.content_hash = original
+        self.assertEqual((changed['status'], changed['rev']), ('updated', 2))
+        self.assertEqual(self.p1.show(memory_id=u['memory_id'])['text'], 'U2 다른 내용')
+        self.assertEqual((same['status'], same['rev']), ('unchanged', 2))
+
+
+
+class UiRoundCoreChanges(Base):
+    """review-chatgpt-3 P2 items: whole-response budget and consistent source_note limit (validation-claude-ui-1)."""
+
+    def test_response_budget_caps_whole_json_and_keeps_counts(self):
+        for n in range(30):
+            self.p1.add(f'예산 시험 항목 {n} ' + 'x' * 40, 'decision', key=f'b{n:02d}')
+        r = self.p1.search('예산', limit=30, max_chars=100000, max_response_chars=1500)
+        self.assertLessEqual(len(json.dumps(r, ensure_ascii=False)), 1500)
+        self.assertEqual(r['response_chars'], len(json.dumps(r, ensure_ascii=False)))
+        self.assertEqual(r['total_matched'], 30)
+        self.assertEqual(r['returned'] + r['omitted_count'], 30)
+        self.assertTrue(r['partial'])
+        self.assertEqual(r['next_offset'], r['returned'])
+        self.assertTrue(r['more'])
+
+    def test_response_budget_paging_covers_every_hit_once(self):
+        for n in range(12):
+            self.p1.add(f'페이지 항목 {n} ' + 'y' * 60, 'decision', key=f'p{n:02d}')
+        seen, offset, pages = [], 0, 0
+        while offset is not None:
+            r = self.p1.search('페이지', limit=30, max_chars=100000, max_response_chars=1300, offset=offset)
+            self.assertLessEqual(r['response_chars'], 1300)
+            self.assertGreater(r['returned'], 0)
+            seen += [x['memory_id'] for x in r['results']]
+            offset, pages = r['next_offset'], pages + 1
+        self.assertEqual(len(seen), 12)
+        self.assertEqual(len(set(seen)), 12)
+        self.assertGreater(pages, 1)
+
+    def test_response_budget_keeps_conflict_count(self):
+        for n in range(6):
+            self.p1.add(f'충돌 시험 {n} ' + 'z' * 50, 'decision', key=f'c{n % 3}')  # 3 keys x 2 contents -> 3 open groups
+        r = self.p1.search('충돌', limit=30, max_chars=100000, max_response_chars=1200)
+        self.assertLessEqual(r['response_chars'], 1200)
+        self.assertEqual(r['conflict_count'], 3)
+        self.assertEqual(r['total_matched'], 6)
+
+    def test_response_budget_validation_and_default_cli_print(self):
+        with self.assertRaises(ValueError):
+            self.p1.search('x', max_response_chars=mem.RESPONSE_MIN - 1)
+        with self.assertRaises(ValueError):
+            self.p1.search('x', offset=-1)
+        with self.assertRaises(ValueError):
+            self.p1.search(' '.join(f'term{i}' for i in range(400)))  # envelope alone over the default budget
+        self.p1.add('기본 예산', 'decision', key='d')
+        r = self.p1.search('기본')
+        self.assertLessEqual(r['response_chars'], mem.RESPONSE_MAX)
+
+    def test_response_budget_never_returns_an_empty_page_while_hits_remain(self):
+        self.p1.add('긴 본문 ' + 'w' * 1900, 'decision', key='long')
+        r = self.p1.search('긴', max_chars=100000, max_response_chars=mem.RESPONSE_MIN)
+        self.assertEqual(r['returned'], 1)
+        self.assertTrue(r['results'][0]['truncated'])
+        self.assertTrue(r['partial'])
+        self.assertLessEqual(r['response_chars'], mem.RESPONSE_MIN)
+
+    def test_source_note_limit_is_the_same_everywhere(self):
+        ok = 'n' * mem.SOURCE_NOTE_MAX
+        over = 'n' * (mem.SOURCE_NOTE_MAX + 1)
+        a = self.p1.add('출처 경계', 'decision', key='s', source_note=ok)
+        self.assertEqual(len(self.p1.show(memory_id=a['memory_id'])['source_note']), 500)
+        with self.assertRaises(ValueError) as cm:
+            self.p1.add('출처 초과', 'decision', key='s2', source_note=over)
+        self.assertIn('not truncated', str(cm.exception))
+        with self.assertRaises(ValueError):
+            self.p1.update(a['memory_id'], 1, '출처 경계 수정', source_note=over)
+        self.assertEqual(self.p1.show(memory_id=a['memory_id'])['rev'], 1)
+        f = Path(self.tmp.name) / 'note.jsonl'
+        f.write_text(json.dumps({'project': 'p1', 'key': 'i1', 'kind': 'decision', 'text': '가져오기 정상', 'source_note': ok}) + '\n'
+                     + json.dumps({'project': 'p1', 'key': 'i2', 'kind': 'decision', 'text': '가져오기 초과', 'source_note': over}) + '\n',
+                     encoding='utf-8')
+        before = self.rows('memories')
+        r = self.p1.import_jsonl(str(f), apply=True)
+        self.assertEqual((r['status'], r['valid_rows']), ('rejected_no_changes', 1))
+        self.assertEqual(r['errors'][0]['line'], 2)
+        self.assertIn('limit is 500', r['errors'][0]['error'])
+        self.assertEqual(self.rows('memories'), before)
+
+    def test_dry_run_add_and_update_write_nothing(self):
+        snap = lambda: [self.p1.db.execute(f'SELECT COUNT(*) FROM {t}').fetchone()[0] for t in ('memories', 'revisions', 'audit', 'conflicts')]
+        a = self.p1.add('원본', 'decision', key='k')
+        before = snap()
+        d = self.p1.add('다른 내용', 'decision', key='k', dry_run=True)
+        self.assertEqual((d['status'], d['dry_run']), ('conflict_candidate', True))
+        u = self.p1.update(a['memory_id'], 1, '수정안', dry_run=True)
+        self.assertEqual((u['status'], u['previous_text'], u['text']), ('updated', '원본', '수정안'))
+        self.assertEqual(snap(), before)
+        self.assertEqual(self.p1.show(memory_id=a['memory_id'])['text'], '원본')
+
+    def test_list_projects_and_open_conflicts(self):
+        self.p1.add('A', 'decision', key='k'); self.p1.add('B', 'decision', key='k')
+        self.store('p2').add('다른 프로젝트', 'decision', key='k')
+        self.assertEqual(mem.list_projects(self.db), ['p1', 'p2'])
+        self.assertEqual(mem.list_projects(Path(self.tmp.name) / 'none.db'), [])
+        oc = self.p1.open_conflicts()
+        self.assertEqual((oc['count'], len(oc['conflicts'][0]['members'])), (1, 2))
+        self.assertEqual(self.store('p2').open_conflicts()['count'], 0)
 
 if __name__ == '__main__':
     unittest.main()

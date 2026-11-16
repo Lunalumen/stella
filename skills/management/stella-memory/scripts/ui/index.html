@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="ko">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="stella-token" content="__STELLA_TOKEN__">
+<title>Stella Memory 관리</title>
+<link rel="stylesheet" href="/app.css">
+<script src="/app.js" defer></script>
+</head>
+<body>
+<header class="top">
+  <div class="brand">Stella Memory <span class="sub">로컬 관리 화면</span></div>
+  <div class="ctx">
+    <div class="ctx-item"><span class="label">DB</span> <code id="db-path">불러오는 중…</code> <span id="db-state" class="badge"></span></div>
+    <div class="ctx-item">
+      <label class="label" for="project-select">프로젝트</label>
+      <select id="project-select"></select>
+      <input id="project-new" placeholder="새 프로젝트 이름" maxlength="64" autocomplete="off">
+      <button id="project-use" type="button" class="ghost">사용</button>
+    </div>
+    <div class="ctx-item"><span class="label">AI 연결</span> <span class="badge off" id="ai-state">연결 안 됨</span></div>
+  </div>
+</header>
+
+<div id="project-banner" class="banner"></div>
+
+<nav class="tabs" role="tablist">
+  <button role="tab" data-tab="list" class="active">기억 목록</button>
+  <button role="tab" data-tab="search">검색</button>
+  <button role="tab" data-tab="add">추가</button>
+  <button role="tab" data-tab="conflicts">충돌 <span id="conflict-count" class="count"></span></button>
+  <button role="tab" data-tab="import">가져오기</button>
+  <button role="tab" data-tab="export">내보내기</button>
+  <button role="tab" data-tab="audit">작업 기록</button>
+</nav>
+
+<main class="layout">
+  <section class="pane" id="pane-main">
+    <div class="view" id="view-list">
+      <div class="row">
+        <label><input type="checkbox" id="list-all"> 대체됨·보관 중지 포함</label>
+        <button type="button" id="list-refresh" class="ghost">새로고침</button>
+      </div>
+      <div id="list-summary" class="muted"></div>
+      <ul id="list-items" class="items"></ul>
+    </div>
+
+    <div class="view hidden" id="view-search">
+      <form id="search-form" class="row">
+        <input id="search-q" placeholder="키워드 (예: 보고서 마감)" required>
+        <label><input type="checkbox" id="search-global"> global 포함</label>
+        <button type="submit">검색</button>
+      </form>
+      <p class="muted small">키워드 일치 검색입니다. 의미 검색이 아니며, 결과에 없다고 저장되지 않았다는 뜻은 아닙니다.</p>
+      <div id="search-summary"></div>
+      <ul id="search-items" class="items"></ul>
+      <div class="row"><button type="button" id="search-prev" class="ghost hidden">이전</button><button type="button" id="search-next" class="ghost hidden">다음 결과</button></div>
+    </div>
+
+    <div class="view hidden" id="view-add">
+      <form id="add-form" class="form">
+        <label>종류 <select id="add-kind"></select></label>
+        <label>주제 키 <input id="add-key" placeholder="예: report.length (비우면 임시 키·미분류)" maxlength="64" autocomplete="off"></label>
+        <label>내용 <span class="counter" id="add-text-count"></span>
+          <textarea id="add-text" rows="4" required placeholder="숫자·날짜·조건·예외를 그대로 적어 주세요"></textarea></label>
+        <label>출처 메모 (선택) <span class="counter" id="add-note-count"></span>
+          <input id="add-note" placeholder="예: 2026-11-15 대화에서 사용자가 요청" autocomplete="off"></label>
+        <div class="row"><button type="submit">저장 전 미리보기</button></div>
+      </form>
+      <div id="add-preview" class="preview hidden"></div>
+    </div>
+
+    <div class="view hidden" id="view-conflicts">
+      <p class="muted">같은 주제 키에 서로 다른 내용이 있는 미해결 충돌입니다. 최신 순으로 자동 선택하지 않습니다. 유지할 후보를 직접 고르세요.</p>
+      <div id="conflict-list"></div>
+    </div>
+
+    <div class="view hidden" id="view-import">
+      <p class="muted">구조화된 JSONL 파일만 받습니다. 파일 안의 작성자·검증 표시는 신뢰하지 않으며, 가져온 기억은 모두 "출처 미확인"으로 저장됩니다. 먼저 미리보기를 하고, 오류가 없을 때만 적용할 수 있습니다. 적용은 전부 성공하거나 전부 취소됩니다.</p>
+      <div class="row"><input type="file" id="import-file" accept=".jsonl,application/json,text/plain"><button type="button" id="import-preview">미리보기</button></div>
+      <div id="import-result"></div>
+    </div>
+
+    <div class="view hidden" id="view-export">
+      <div class="row">
+        <label>형식 <select id="export-format"><option value="jsonl">JSONL (다시 가져오기용)</option><option value="handoff">전달문 (Markdown)</option></select></label>
+        <label><input type="checkbox" id="export-retired"> 보관 중지 포함</label>
+        <button type="button" id="export-run">내보내기</button>
+      </div>
+      <p class="warn small">내보낸 파일에는 기억 원문이 들어 있습니다. 공용 GitHub 등에 올리지 마세요. 삭제한 뒤에도 이미 내보낸 파일은 지워지지 않습니다.</p>
+      <div id="export-result"></div>
+    </div>
+
+    <div class="view hidden" id="view-audit">
+      <p class="muted">작업 기록에는 기억 원문이 남지 않습니다(작업 종류·ID·키·시각만).</p>
+      <ul id="audit-items" class="items compact"></ul>
+    </div>
+  </section>
+
+  <aside class="pane" id="pane-detail">
+    <div id="detail-empty" class="muted">왼쪽에서 기억을 선택하면 상세 정보가 보입니다.</div>
+    <div id="detail" class="hidden"></div>
+  </aside>
+</main>
+
+<div id="result" class="result hidden" role="status" aria-live="polite"></div>
+
+<div id="modal" class="modal hidden" role="dialog" aria-modal="true">
+  <div class="modal-box">
+    <h2 id="modal-title"></h2>
+    <div id="modal-body"></div>
+    <div class="row end"><button type="button" id="modal-cancel" class="ghost">취소</button><button type="button" id="modal-ok"></button></div>
+  </div>
+</div>
+</body>
+</html>

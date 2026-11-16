@@ -44,7 +44,16 @@ update: current_rev == expect_rev 일 때만 rev+1, 아니면 stale_revision(변
 ```
 
 ## 중복 판정
-같은 (project, key)에서 content_hash **와 정규화 문자열이 모두** 같을 때만 동일 내용으로 본다(해시 일치만으로 합치지 않음). active/conflict면 `unchanged`, retired면 `retired_exists`. 다른 project나 key면 새 기억. 지문 일치 = 같은 문자열이지 같은 의미라는 뜻은 아니다.
+같은 (project, key)에서 content_hash **와 정규화 문자열이 모두** 같을 때만 동일 내용으로 본다(해시 일치만으로 합치지 않음). active/conflict면 `unchanged`, retired면 `retired_exists`. 다른 project나 key면 새 기억. `update`도 같은 조건(해시와 정규화 문자열 모두 일치, kind 변경 없음)일 때만 `unchanged`로 처리한다. 지문 일치 = 같은 문자열이지 같은 의미라는 뜻은 아니다.
+
+## 출처 메모 길이
+`source_note`는 add·update·import 모두 500자 이하. 초과하면 저장하지 않고 `source_note is N characters; limit is 500 (not truncated…)` 오류를 낸다. import에서는 해당 행이 미리보기 오류가 되고 적용은 전체 무변경이다(이전에는 import만 500자로 조용히 잘랐다).
+
+## 검색 응답 예산
+- `max_chars`(기본 1,500): 결과 본문 합계. 첫 결과가 넘치면 잘라 `truncated: true`.
+- `max_response_chars`(기본 4,000, 최소 1,200): 응답 전체를 `json.dumps(ensure_ascii=False)`로 센 문자 수. `response_chars`에 실제 값이 들어 있고 CLI는 같은 형태(한 줄 JSON)로 출력한다. 모델 토큰 수나 네트워크 바이트가 아니다.
+- 넘치면 `omitted_ids` 목록 → 결과 건수(1건까지) → `conflicts` 목록 → 첫 결과 본문 순으로 줄인다. `total_matched`·`omitted_count`·`conflict_count`는 줄이지 않는다. `omitted_ids_complete`/`conflicts_complete`가 false면 목록이 줄어든 것이다.
+- 결과는 `offset`부터 연속 구간이다. `next_offset`(없으면 null)으로 다시 검색하면 빠짐·중복 없이 이어진다. 남은 결과가 있는데 0건 페이지를 돌려주지 않는다.
 
 ## 재활성화 (`add --reactivate`)
 retired 기억을 active로 되돌릴 때도 새 저장과 같은 충돌 검사를 거친다. 같은 key에 다른 live 기억이 있으면 열린 충돌 그룹에 합류하고 `reactivated_conflict_candidate`를 돌려준다. 재활성화 요청은 다른 후보와의 모순을 자동 해소하라는 뜻이 아니다.
@@ -53,6 +62,10 @@ retired 기억을 active로 되돌릴 때도 새 저장과 같은 충돌 검사�
 - 적용은 **전체 성공 또는 전체 무변경**(한 트랜잭션). 어느 행이든 실패하면 모두 되돌리고 `rejected_no_changes`.
 - 미리보기(`--dry-run` 기본)에서 거부: 필수 필드 누락, project 불일치, 파일 안 `memory_id` 중복, 저장소에 이미 있는 `memory_id`(import는 덮어쓰지 않음, `update` 사용), tombstone에 있는 `memory_id`(`--allow-resurrect` 없을 때).
 - `memory_id`는 삭제·유실된 기억을 되돌릴 때만 넣는다. 파일 크기 5 MB 이하.
+
+## 알려진 한계 (이번 범위에서 고치지 않음)
+- **다른 project의 ID 존재 단서**: import 미리보기에서 다른 project에 있는 `memory_id`를 넣으면 `memory_id already exists in store`가 나와 그 ID가 어딘가 있다는 사실이 드러난다. 원문·project 이름은 나오지 않는다. project는 같은 사용자 DB 안의 혼입 방지이지 접근 통제 경계가 아니므로 현재 단일 사용자 범위에서는 유지한다. 다중 사용자·외부 서비스로 넓히기 전에 일반화된 오류로 바꾼다.
+- **삭제 후 `superseded_by` 참조**: 충돌 해소로 대체된 개정의 `superseded_by`(`<id>:<rev>`)는 선택된 기억이 나중에 삭제돼도 남는다. 원문은 없고, 해당 ID는 tombstone으로 해석한다(`show --conflict`의 `resolved_memory_deleted`). 이력을 잃지 않도록 NULL로 지우지 않는다.
 
 ## 삭제 후 충돌 이력
 `delete`는 열린 그룹에서는 멤버를 빼고 후보가 1개 이하면 그룹을 `dissolved`로 닫는다. resolved/dissolved 그룹의 멤버 행은 이력으로 남고, `show --conflict`는 삭제된 멤버를 `status: deleted, deleted_at, text: null`로 설명한다(`resolved_memory_deleted` 플래그 포함). 삭제된 원문은 어디에도 돌려주지 않는다.
