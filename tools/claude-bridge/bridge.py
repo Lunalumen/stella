@@ -33,7 +33,7 @@ def stamp():
 def save_json(path, data):
     tmp = path.with_name(path.name + '.' + uuid.uuid4().hex + '.tmp')
     try:
-        with tmp.open('x', encoding='utf-8') as f:
+        with os.fdopen(os.open(tmp, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600), 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
             f.write('\n')
         os.replace(tmp, path)
@@ -96,7 +96,7 @@ class ClaudeClient:
             raise ValueError('Claude auth status did not return JSON; no credentials were read by this bridge.') from exc
         return {'logged_in': d.get('loggedIn') is True, 'auth_method': d.get('authMethod'),
                 'subscription_login': d.get('loggedIn') is True and d.get('authMethod') == 'claude.ai',
-                'cli': str(self.executable)}
+                'cli_available': True}
 
     def command(self, session, resume):
         uuid.UUID(session)
@@ -145,7 +145,8 @@ class Bridge:
         p = (p if p.is_absolute() else self.root / p).resolve()
         if not p.is_relative_to(self.root) or not p.is_file():
             raise ValueError('Question/context must be an explicit file inside this project.')
-        if any(part in {'.git', '.bridge', '.codex', '.claude'} for part in p.relative_to(self.root).parts):
+        if any(part.lower() in {'.git', '.bridge', '.codex', '.claude', 'private', 'logs', 'credentials'}
+               or part.startswith('.') for part in p.relative_to(self.root).parts):
             raise ValueError('Internal/session/config files are not accepted as context.')
         if p.suffix.lower() not in {'.md', '.txt'}:
             raise ValueError('Only .md/.txt context is supported; no directory ingestion.')
@@ -159,7 +160,7 @@ class Bridge:
     def ask(self, task, question, context=(), new_session=False, timeout=120):
         if not isinstance(question, str) or not question.strip() or len(question) > 12_000:
             raise ValueError('Question must contain 1-12,000 characters.')
-        if not 10 <= timeout <= 300:
+        if type(timeout) is not int or not 10 <= timeout <= 300:
             raise ValueError('Timeout must be 10-300 seconds.')
         folder = self.task_dir(task)
         pieces = [self.read_context(p) for p in context]
@@ -232,9 +233,11 @@ class Bridge:
         turns = []
         for p in sorted(folder.glob('[0-9][0-9][0-9][0-9]')):
             if p.is_dir():
-                turns.append({'turn': p.name, 'request_file': str(p / 'request.json'),
-                              'answer_file': str(p / 'answer-claude.md') if (p / 'answer-claude.md').exists() else None})
-        return {'task': task, 'state': json.loads(state.read_text('utf-8')), 'turns': turns}
+                result = p / 'result.json'
+                data = json.loads(result.read_text('utf-8')) if result.exists() else {'status': 'inflight'}
+                turns.append({'turn': p.name, 'status': data.get('status'), 'usage': data.get('usage', {})})
+        status = json.loads(state.read_text('utf-8')).get('status', 'unknown')
+        return {'task': task, 'status': status, 'turns': turns}
 
 
 def main():

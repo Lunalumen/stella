@@ -1,9 +1,11 @@
-# Explicit Claude CLI bridge
+# Claude task-session bridge
 
-Optional compatibility source for sending one user-authorized question to a separately installed official Claude CLI. It saves the visible request/answer and session metadata locally in `.bridge/`, supports explicit session continuation, and has task locks and bounded timeouts. It does not copy hidden reasoning, wake existing desktop chats, or start an automatic conversation loop.
+The existing bridge keeps a task's Claude session and uses `--resume` after its first successful turn. Same root + same task means continuation; a different task/root or explicit `--new-session` starts a separate conversation. A raw `claude -p` call does not automatically use this bridge's task mapping.
 
-Inspect `python bridge.py --help` before use. Install and authenticate the CLI yourself. The implementation checks the CLI/account path and removes selected API-routing environment variables; it does not include credentials or grant an account. Existing subscription usage and limits still apply. No Claude call was made for this export, and including this tool does not appoint Claude as a developer or authorize future calls.
+Use [the shared dispatcher](../BRIDGE_README.md) to avoid inconsistent entry points. The original `bridge.py status|ask|history` commands remain supported. With the standalone wrapper, relative question files are resolved inside its project root; with the dispatcher, `--root` explicitly selects that root. Old `.bridge/tasks/` records remain compatible.
 
-For an explicitly authorized request after local setup: `python bridge.py ask --task example-001 --question-file ./question.txt --timeout 120`. Reusing that task continues its saved bridge session; `--new-session` explicitly starts again. `python bridge.py history --task example-001` reads the local visible history. These commands can transmit the selected question/context and consume account usage; they are examples, not commands run during publication.
+The CLI must be separately installed and authenticated using the user's own subscription. No API-key fallback, new software installation, recursive model calls, background watcher, or hidden-reasoning transfer is added. Selected question/reference text and account usage are still transmitted/consumed when a user authorizes a call.
 
-Never publish `.bridge/`, prompts containing private data, authentication files or results. `test_bridge.py` contains synthetic subprocess mocks; a fresh test run and real CLI connection were not performed in this publication check.
+`history` now returns redacted turn/status/usage metadata rather than exposing session IDs and absolute paths. Requests and visible answers remain in the ignored, plaintext local task records. Dotfiles and private/session/config/log/credential directories cannot be attached as references. No source publication should contain `.bridge/` or authentication records.
+
+`test_bridge.py` covers offline synthetic behavior. Actual continuation checks and remaining limitations are recorded in the [verification document](../../docs/BRIDGE_VALIDATION_2026-11-17.md). Including this compatibility tool does not authorize Claude to participate in unrelated work; each review request still needs user authorization.

@@ -1,0 +1,12 @@
+{
+  "mcpServers": {
+    "codex-chatgpt": {
+      "command": "python",
+      "args": ["-B", "-X", "utf8", "<repository>/tools/codex-bridge/server.py"],
+      "env": {
+        "STELLA_CODEX_ROOT": "<project-folder>",
+        "CODEX_EXE": "<official-native-Codex-executable>"
+      }
+    }
+  }
+}

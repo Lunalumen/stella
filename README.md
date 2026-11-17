@@ -12,7 +12,7 @@ Maintained by [Lunalumen](https://github.com/Lunalumen). Documentation entry poi
 | Korea/US Stock Research | Official-source retrieval, document imports, caching, bounded research workflows | [apps/stock-research](apps/stock-research/README.md) |
 | Stock Workroom | Local animated workflow demonstration and optional market chart | [workroom](apps/stock-research/workroom/README.md) |
 | Agent Runtime | Explicit Codex SDK task planning, selected roles, bounded execution and usage records | [tools/agent-runtime](tools/agent-runtime/README.md) |
-| CLI Bridges | Optional explicit requests to separately installed Claude/Codex CLIs | [tools/claude-bridge](tools/claude-bridge/README.md), [tools/codex-bridge](tools/codex-bridge/README.md) |
+| CLI Bridges | Explicit task conversations with separate saved sessions for Claude/Codex | [unified bridge guide](tools/BRIDGE_README.md), [review workflow](docs/BRIDGE_WORKFLOW.md) |
 | Integration Router | Select the relevant GitHub, Workspace, Firecrawl, Context7, Notion or stock branch | [tools/integrations](tools/integrations/README.md) |
 | Stella Memory | Project-scoped local SQLite memory and experimental management UI | [memory skill](skills/management/stella-memory/SKILL.md) |
 | Skills | Document reading, cache/retrieval, concise prompts, token audit, study, research, Java packaging | [skill catalog](skills/README.md) |
@@ -33,4 +33,5 @@ Local storage, cache lookup, the synthetic study demo, and mock research tests d
 
 Keep actual databases, source documents, chat history, credentials, exports, runtime installations and logs outside version control. See [SECURITY.md](SECURITY.md), [third-party notices](THIRD_PARTY_NOTICES.md), and [program export verification](docs/PROGRAM_EXPORT_2026-11-16.md).
 
-The source export received syntax, configuration and private-reference checks. It has not received a fresh end-to-end runtime test in the publication environment. Treat the programs as experimental; source preservation, successful syntax checks, live service connection, and measured token savings are different claims. Token/cost savings for the whole task have not been measured.
+The source export received syntax, configuration and private-reference checks. Most applications have not received a fresh end-to-end runtime test in the publication environment; the separately tested bridge sessions and remaining host-refresh limits are recorded in [bridge verification](docs/BRIDGE_VALIDATION_2026-11-17.md). Treat the programs as experimental; source preservation, successful syntax checks, live service connection, and measured token savings are different claims. Token/cost savings for the whole task have not been measured.
+
